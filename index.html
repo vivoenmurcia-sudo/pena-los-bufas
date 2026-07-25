@@ -629,6 +629,12 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
 
     <!-- SOCIOS -->
     <div id="sec-socios" class="section">
+      <div class="card" style="margin-bottom:.85rem">
+        <div class="card-title">🙋 Mi perfil</div>
+        <div class="fg"><label class="flabel">Tu nombre en la app</label>
+          <input type="text" class="finput" id="soc-my-name" placeholder="Ej: Murciano"></div>
+        <button class="btn btn-vp" style="width:100%" onclick="renameMe()">Guardar mi nombre 💾</button>
+      </div>
       <div class="card" style="margin-bottom:.85rem" id="soc-invite-card">
         <div class="card-title">➕ Invitar nuevo socio</div>
         <div class="fg"><label class="flabel">Email de Google <span style="color:#cbd5e1;font-weight:400">(no hace falta que sea @gmail.com)</span></label>
@@ -1025,7 +1031,7 @@ const ALL_CATS=[...CAT_FIJOS,...CAT_HOGAR,...CAT_LEGACY];
 function getCatAll(id){return ALL_CATS.find(c=>c.id===id)||CAT_HOGAR[CAT_HOGAR.length-1];}
 
 const CAT_VIAJE=[
-  {id:'cuota_socio', icon:'🧑‍🤝‍🧑',label:'Cuota socio',       color:'#0ea5e9'},
+  {id:'cuota_socio', icon:'🧑‍🤝‍🧑',label:'Cuota Socio',       color:'#0ea5e9'},
   {id:'cuota_amigo', icon:'🙋',label:'Cuota Amigo',        color:'#16a34a'},
   {id:'subvenciones',icon:'🏛️',label:'Subvenciones/Ayudas', color:'#8b5cf6'},
   {id:'otros',       icon:'💶',label:'Otros',              color:'#94a3b8'},
@@ -1320,7 +1326,7 @@ document.addEventListener('db-ready',()=>{
         if(email===OWNER_EMAIL){
           const firstName=(user.displayName||'Admin').split(' ')[0];
           p={id:key,email,name:firstName,role:'admin',avClass:avClassFor(email),letter:firstName[0].toUpperCase()};
-          await dbSet(`socios/${key}`,{email,name:firstName,owner:true,addedAt:Date.now()}).catch(()=>{});
+          await dbSet(`socios/${key}`,{email,name:firstName,owner:true,addedAt:Date.now()}).catch(e=>{console.error('No se pudo auto-registrar el superusuario en /socios:',e);});
         }else{
           const socio=await dbGet(`socios/${key}`);
           if(!socio){document.getElementById('login-error').textContent=`Sin acceso: ${email}. Pide al administrador que te invite.`;window._signOut();return;}
@@ -1395,11 +1401,14 @@ function startLsn(){
 }
 function attachHLsn(){if(lsnH){lsnH();lsnH=null;}lsnH=dbLsn(`gastos_hogar/${get_currentMonth()}`,s=>{hogarData=s||{};renderHGastos();updateHero();if(hogarSub==='resumen')renderResumen();});}
 function attachVLsn(){if(lsnV){lsnV();lsnV=null;}lsnV=dbLsn(`ingresos/${get_currentMonth()}`,s=>{viajesData=s||{};renderIngList();updateHeroIng();if(ingSub==='resumen')renderResumenIng();});}
+function familyFromSocios(data){
+  return Object.entries(data||{}).map(([key,v])=>({id:key,name:v.name||v.email||'?',email:v.email||'',avClass:avClassFor(v.email||key),letter:(v.name||v.email||'?')[0].toUpperCase(),owner:!!v.owner})).sort((a,b)=>a.name.localeCompare(b.name));
+}
 function attachSociosLsn(){
   if(lsnSocios){lsnSocios();lsnSocios=null;}
   lsnSocios=dbLsn('socios',s=>{
     sociosData=s||{};
-    FAMILY=Object.entries(sociosData).map(([key,v])=>({id:key,name:v.name||v.email||'?',email:v.email||'',avClass:avClassFor(v.email||key),letter:(v.name||v.email||'?')[0].toUpperCase(),owner:!!v.owner})).sort((a,b)=>a.name.localeCompare(b.name));
+    FAMILY=familyFromSocios(sociosData);
     if(mainTab==='socios')renderSociosList();
   });
 }
@@ -1414,7 +1423,10 @@ function switchMain(tab,btn){
   document.getElementById('sec-viajes').classList.toggle('active',tab==='viajes');
   document.getElementById('sec-balance').classList.toggle('active',tab==='balance');
   document.getElementById('sec-socios').classList.toggle('active',tab==='socios');
-  if(tab==='socios')renderSociosList();
+  if(tab==='socios'){
+    renderSociosList();
+    const nameEl=document.getElementById('soc-my-name');if(nameEl)nameEl.value=currentUser?.name||'';
+  }
   if(tab==='balance')loadBalance();
   updateFab();
 }
@@ -1504,7 +1516,7 @@ function renderHGastos(){
   const renderItem=(id,g,tipo='hogar')=>{
     const cat=getCatAll(g.categoria);
     const quien=FAMILY.find(f=>f.id===g.quien)?.name||'?';
-    const canEdit=currentRole==='admin'||(g.quien===currentUser?.id);
+    const canEdit=currentUser?.email===OWNER_EMAIL||(g.quien===currentUser?.id);
     return`<div class="gasto-item" onclick="openDetalle('hogar','${id}')" style="border-left:4px solid ${cat.color}">
       <div class="gcat-icon" style="background:${cat.color}20">${cat.icon}</div>
       <div class="gasto-body">
@@ -1842,7 +1854,7 @@ function openDetalle(tipo, id, viajeId){
 
   const cat=tipo==='viaje'?getCat(CAT_VIAJE,g.categoria||'otros'):getCatAll(g.categoria||'otros');
   const quien=FAMILY.find(f=>f.id===(g.quien||g.quien_pago))?.name||'?';
-  const canEdit=currentRole==='admin'||((g.quien||g.quien_pago)===currentUser?.id);
+  const canEdit=currentUser?.email===OWNER_EMAIL||((g.quien||g.quien_pago)===currentUser?.id);
 
   // Header — con foto de fondo si hay foto del lugar
   const hdr=document.getElementById('detalle-header');
@@ -2001,7 +2013,19 @@ function goToMonth(num){
 }
 
 // ══ PRESUPUESTOS ══
-// ══ SOCIOS (solo superusuario) ══
+// ══ SOCIOS (solo superusuario invita/quita; cada uno se renombra a sí mismo) ══
+async function renameMe(){
+  const val=document.getElementById('soc-my-name').value.trim();
+  if(!val){toast('⚠️ Escribe un nombre');return;}
+  try{
+    await dbUpd(`socios/${currentUser.id}`,{name:val});
+    currentUser.name=val;
+    document.getElementById('top-name').textContent=val;
+    const av=document.getElementById('top-av');av.textContent=val[0].toUpperCase();
+    toast('✅ Nombre actualizado');
+  }catch(e){console.error(e);toast('❌ Error al guardar. Comprueba las reglas de la base de datos.');}
+}
+
 function renderSociosList(){
   const el=document.getElementById('socios-list');
   const isOwner=currentUser?.email===OWNER_EMAIL;
@@ -2074,9 +2098,13 @@ function updateGHLugarLabel(catId){
     lugarLbl.innerHTML='🍽️ Foto del restaurante <span style="color:#cbd5e1;font-weight:400">(aparece en el header)</span>';
   }
 }
-function openGHModal(editId){
+async function openGHModal(editId){
   editGHId=editId||null;
   document.getElementById('modal-gh-title').textContent=editId?'✏️ Editar gasto':'➕ Nuevo gasto';
+  if(!FAMILY.length){
+    try{sociosData=await dbGet('socios')||{};FAMILY=familyFromSocios(sociosData);}
+    catch(e){console.error(e);}
+  }
   buildCatPicker('gh-cat-fijos',CAT_FIJOS,'h');
   buildCatPicker('gh-cat',CAT_HOGAR,'h');
   document.getElementById('gh-quien').innerHTML=FAMILY.map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
@@ -2158,6 +2186,7 @@ function openGHModal(editId){
 async function saveGastoHogar(){
   const importe=parseFloat(document.getElementById('gh-imp').value);
   if(!importe||importe<=0){toast('⚠️ Introduce un importe válido');return;}
+  if(!document.getElementById('gh-quien').value){toast('⚠️ No se ha podido cargar la lista de socios, cierra y vuelve a abrir el formulario');return;}
   setUploading('gh',true);
   try{
     const fecha=document.getElementById('gh-fecha').value||todayISO();
@@ -2896,7 +2925,7 @@ function renderIngList(){
   el.innerHTML='<div class="gasto-list">'+entries.map(([id,g])=>{
     const cat=getCat(CAT_VIAJE,g.categoria);
     const quien=FAMILY.find(f=>f.id===g.quien)?.name||'?';
-    const canEdit=currentRole==='admin'||(g.quien===currentUser?.id);
+    const canEdit=currentUser?.email===OWNER_EMAIL||(g.quien===currentUser?.id);
     return`<div class="gasto-item" onclick="openDetalle('viaje','${id}')" style="border-left:4px solid ${cat.color}">
       <div class="gcat-icon" style="background:${cat.color}20">${cat.icon}</div>
       <div class="gasto-body">
@@ -3185,9 +3214,13 @@ function exportIngresosMes(){
 }
 
 // ══ INGRESO MODAL ══
-function openGVModal(editId){
+async function openGVModal(editId){
   editGVId=editId||null;
   document.getElementById('modal-gv-title').textContent=editId?'✏️ Editar ingreso':'➕ Nuevo ingreso';
+  if(!FAMILY.length){
+    try{sociosData=await dbGet('socios')||{};FAMILY=familyFromSocios(sociosData);}
+    catch(e){console.error(e);}
+  }
   buildCatPicker('gv-cat',CAT_VIAJE,'v');rmPhoto('gv');
   document.getElementById('gv-quien').innerHTML=FAMILY.map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
   if(editId&&viajesData[editId]){
@@ -3213,6 +3246,7 @@ function openGVModal(editId){
 async function saveGastoViaje(){
   const importe=parseFloat(document.getElementById('gv-imp').value);
   if(!importe||importe<=0){toast('⚠️ Introduce un importe válido');return;}
+  if(!document.getElementById('gv-quien').value){toast('⚠️ No se ha podido cargar la lista de socios, cierra y vuelve a abrir el formulario');return;}
   setUploading('gv',true);
   try{
     let foto_url=existUrl.gv||null,foto_path=existPath.gv||null;
@@ -3238,7 +3272,7 @@ async function delGV(id,photoPath){
 
 // ══ CAT PICKER ══
 function buildCatPicker(cid,cats,type){
-  document.getElementById(cid).innerHTML=cats.map(c=>`<button class="cpick" id="${cid}-${c.id}" onclick="selectCat('${cid}','${c.id}','${type}')"><span class="ce">${c.icon}</span><span>${c.label.split(' ')[0]}</span></button>`).join('');
+  document.getElementById(cid).innerHTML=cats.map(c=>`<button class="cpick" id="${cid}-${c.id}" onclick="selectCat('${cid}','${c.id}','${type}')"><span class="ce">${c.icon}</span><span>${c.label}</span></button>`).join('');
 }
 function selectCat(cid,catId,type){
   if(type==='v')selCatV=catId;else selCatH=catId;
