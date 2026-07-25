@@ -524,7 +524,6 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
             <option value="importe-desc">💰 Mayor importe</option>
             <option value="importe-asc">💰 Menor importe</option>
           </select>
-          <button class="export-btn" onclick="openGasolinaStats()" style="flex-shrink:0" title="Estadísticas gasolina">⛽</button>
         </div>
         <div class="person-filters" id="person-filters"></div>
         <div id="gastos-list"></div>
@@ -712,19 +711,6 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
         <input type="number" class="finput" id="gh-km-actual" placeholder="Km actuales del odómetro (ej: 87543)" min="0" step="1" oninput="calcKmDiff()">
         <div id="gh-km-diff" style="font-size:.75rem;color:#22c55e;font-weight:700;margin-top:4px;display:none"></div>
       </div>
-    </div>
-    <!-- SUPERMERCADO — selector de cadena -->
-    <div class="fg" id="gh-super-section" style="display:none">
-      <label class="flabel">🛒 Cadena de supermercado</label>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px" id="gh-super-cadena">
-        <div class="gas-veh active" style="flex:none;padding:8px 14px" onclick="selectCadena('gh','Mercadona',this)">🟢 Mercadona</div>
-        <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectCadena('gh','DIA',this)">🔴 DIA</div>
-        <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectCadena('gh','Coviran',this)">🟡 Coviran</div>
-        <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectCadena('gh','Burguillos',this)">🟠 Burguillos</div>
-        <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectCadena('gh','Lolica',this)">🟣 Lolica</div>
-        <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectCadena('gh','otro',this)">✏️ Otra</div>
-      </div>
-      <input type="text" class="finput" id="gh-super-otro" placeholder="Nombre del supermercado..." style="display:none">
     </div>
     <!-- SEGUROS — selector de tipo -->
     <div class="fg" id="gh-seguro-section" style="display:none">
@@ -1026,11 +1012,14 @@ const CAT_LEGACY=[
 // para que los gastos ya guardados con esas categorías sigan agrupándose como fijos.
 const FIJO_IDS=[...CAT_FIJOS.map(c=>c.id),...CAT_LEGACY.map(c=>c.id)];
 const CAT_HOGAR=[
-  {id:'supermercado',icon:'🛒',label:'Supermercado',color:'#22c55e'},
-  {id:'casa',        icon:'🔨',label:'Reformas Peña',color:'#3b82f6'},
-  {id:'restaurante', icon:'🍽️',label:'Restaurante',  color:'#f97316'},
-  {id:'ocio',        icon:'🎭🎡',label:'Ocio',         color:'#8b5cf6'},
-  {id:'otros',       icon:'📦',label:'Otros',        color:'#94a3b8'},
+  {id:'mercadona',  icon:'🟢',label:'Mercadona',     color:'#22c55e'},
+  {id:'dia',        icon:'🔴',label:'DIA',           color:'#ef4444'},
+  {id:'coviran',    icon:'🟡',label:'Coviran',       color:'#eab308'},
+  {id:'burguillos', icon:'🟠',label:'Burguillos',    color:'#f97316'},
+  {id:'lolica',     icon:'🟣',label:'Lolica',        color:'#a855f7'},
+  {id:'casa',       icon:'🔨',label:'Reformas Peña', color:'#3b82f6'},
+  {id:'ocio',       icon:'🎭🎡',label:'Ocio',         color:'#8b5cf6'},
+  {id:'otros',      icon:'📦',label:'Otros',        color:'#94a3b8'},
 ];
 const ALL_CATS=[...CAT_FIJOS,...CAT_HOGAR,...CAT_LEGACY];
 function getCatAll(id){return ALL_CATS.find(c=>c.id===id)||CAT_HOGAR[CAT_HOGAR.length-1];}
@@ -1079,7 +1068,7 @@ let get_currentMonth=()=>`${currentYear}-${pad(currentMonthNum)}`;
 let hogarData={},viajesData={},cfgData={},sociosData={};
 let lsnH=null,lsnV=null,lsnC=null,lsnSocios=null;
 let editGHId=null,editGVId=null;
-let selCatH='supermercado',selCatV='comidas';
+let selCatH='otros',selCatV='cuota_socio';
 let pendingFile={gh:null,gv:null,gvl:null,ghl:null};
 let existUrl={gh:null,gv:null,gvl:null,ghl:null};
 let existPath={gh:null,gv:null,gvl:null,ghl:null};
@@ -2101,7 +2090,7 @@ function openGHModal(editId){
     document.getElementById('gh-fecha').value=g.fecha||todayISO();
     document.getElementById('gh-quien').value=g.quien||currentUser?.id||'';
     document.getElementById('gh-rec').checked=!!g.recurrente;
-    selCatH=g.categoria||'supermercado';
+    selCatH=g.categoria||'otros';
     // Migración suave: los gastos antiguos de "Seguro coche"/"Seguro médico" pasan a la
     // categoría unificada "Seguros" en cuanto se editan, con su tipo precargado.
     if(selCatH==='seguro_coche'){selCatH='seguros';legacyTipoSeguro='Coche';}
@@ -2119,7 +2108,7 @@ function openGHModal(editId){
     document.getElementById('gh-fecha').value=todayISO();
     document.getElementById('gh-quien').value=currentUser?.id||'';
     document.getElementById('gh-rec').checked=false;
-    selCatH='supermercado';
+    selCatH='otros';
     const enlaceElNew=document.getElementById('gh-enlace');
     if(enlaceElNew)enlaceElNew.value='';
     const ubicElNew=document.getElementById('gh-ubicacion');
@@ -2132,7 +2121,7 @@ function openGHModal(editId){
   if(fijoBody){fijoBody.style.display=esFijo?'block':'none';}
   if(fijoArrow){fijoArrow.classList.toggle('open',esFijo);}
   const lugarSection=document.getElementById('gh-lugar-section');
-  if(lugarSection)lugarSection.style.display=(selCatH==='restaurante'||selCatH==='ocio')?'':'none';
+  if(lugarSection)lugarSection.style.display=selCatH==='ocio'?'':'none';
   updateGHLugarLabel(selCatH);
   const enlaceSecH=document.getElementById('gh-enlace-section');
   if(enlaceSecH)enlaceSecH.style.display=selCatH==='ocio'?'':'none';
@@ -2142,11 +2131,6 @@ function openGHModal(editId){
   if(gasSecH)gasSecH.style.display=selCatH==='gasolina'?'':'none';
   resetGasFields('gh');
   if(editId&&hogarData[editId]&&hogarData[editId].categoria==='gasolina')loadGasFields('gh',hogarData[editId]);
-  // Supermercado
-  const superSecH=document.getElementById('gh-super-section');
-  if(superSecH)superSecH.style.display=selCatH==='supermercado'?'':'none';
-  resetCadenaSuper('gh',!!editId);
-  if(editId&&hogarData[editId]&&hogarData[editId].cadena)loadCadenaSuper('gh',hogarData[editId].cadena);
   // Seguros
   const seguroSecH=document.getElementById('gh-seguro-section');
   if(seguroSecH)seguroSecH.style.display=selCatH==='seguros'?'':'none';
@@ -2195,7 +2179,7 @@ async function saveGastoHogar(){
     const ubicacion=document.getElementById('gh-ubicacion')?.value.trim()||null;
     const kmValRaw=(selCatH==='coche'||selCatH==='gasolina')?parseFloat(document.getElementById('gh-km-actual')?.value||''):NaN;
     const kmVal=(!isNaN(kmValRaw)&&kmValRaw>0)?kmValRaw:null;
-    const data={importe,categoria:selCatH,descripcion:document.getElementById('gh-desc').value.trim(),nota:document.getElementById('gh-nota').value.trim()||null,enlace:enlace||null,ubicacion:ubicacion||null,fecha,quien:document.getElementById('gh-quien').value,recurrente:document.getElementById('gh-rec').checked||null,foto_url:foto_url||null,foto_path:foto_path||null,foto_lugar_url:foto_lugar_url||null,foto_lugar_path:foto_lugar_path||null,...(selCatH==='gasolina'?getGasData('gh'):{}),...(selCatH==='supermercado'?{cadena:getCadenaData('gh')}:{}),...(selCatH==='seguros'?{tipo_seguro:getTipoSeguroData('gh')}:{}),...(kmVal?{km_actual:kmVal,km_vehiculo:selKmVeh}:{}),timestamp:Date.now()};
+    const data={importe,categoria:selCatH,descripcion:document.getElementById('gh-desc').value.trim(),nota:document.getElementById('gh-nota').value.trim()||null,enlace:enlace||null,ubicacion:ubicacion||null,fecha,quien:document.getElementById('gh-quien').value,recurrente:document.getElementById('gh-rec').checked||null,foto_url:foto_url||null,foto_path:foto_path||null,foto_lugar_url:foto_lugar_url||null,foto_lugar_path:foto_lugar_path||null,...(selCatH==='gasolina'?getGasData('gh'):{}),...(selCatH==='seguros'?{tipo_seguro:getTipoSeguroData('gh')}:{}),...(kmVal?{km_actual:kmVal,km_vehiculo:selKmVeh}:{}),timestamp:Date.now()};
     let finalGastoId=editGHId;
     if(editGHId){
       // Si la fecha cambia de mes, mover a nuevo mes
@@ -2738,57 +2722,8 @@ function exportGasolinaPDF(){
   +'</body></html>');
   w.document.close();
 }
-// ══ SUPERMERCADO CADENA ══
-const CADENAS_SUPER=[
-  {id:'Mercadona',label:'Mercadona',icon:'🟢'},
-  {id:'DIA',label:'DIA',icon:'🔴'},
-  {id:'Coviran',label:'Coviran',icon:'🟡'},
-  {id:'Burguillos',label:'Burguillos',icon:'🟠'},
-  {id:'Lolica',label:'Lolica',icon:'🟣'},
-];
-let selCadenaSuper={gh:'Mercadona'};
+// ══ (cadenas de supermercado ahora son categorías propias — ver CAT_HOGAR) ══
 
-function selectCadena(prefix,cadena,btn){
-  selCadenaSuper[prefix]=cadena;
-  document.querySelectorAll(`#${prefix}-super-cadena .gas-veh`).forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  const otroInput=document.getElementById(`${prefix}-super-otro`);
-  if(otroInput)otroInput.style.display=cadena==='otro'?'block':'none';
-}
-
-function getCadenaData(prefix){
-  const cadena=selCadenaSuper[prefix]||'Mercadona';
-  if(cadena==='otro'){
-    const val=document.getElementById(`${prefix}-super-otro`)?.value.trim();
-    return val||'Otro';
-  }
-  return cadena;
-}
-
-function resetCadenaSuper(prefix,sinDefecto){
-  selCadenaSuper[prefix]=sinDefecto?null:'Mercadona';
-  const btns=document.querySelectorAll(`#${prefix}-super-cadena .gas-veh`);
-  btns.forEach((b,i)=>b.classList.toggle('active',!sinDefecto&&i===0));
-  const otroInput=document.getElementById(`${prefix}-super-otro`);
-  if(otroInput){otroInput.style.display='none';otroInput.value='';}
-}
-
-function loadCadenaSuper(prefix,cadena){
-  if(!cadena)return;
-  selCadenaSuper[prefix]=cadena;
-  document.querySelectorAll(`#${prefix}-super-cadena .gas-veh`).forEach(b=>{
-    const match=b.textContent.trim().includes(cadena)||cadena==='otro'&&b.textContent.includes('Otra');
-    b.classList.toggle('active',match);
-  });
-  const otroInput=document.getElementById(`${prefix}-super-otro`);
-  if(!CADENAS_SUPER.find(c=>c.id===cadena)){
-    if(otroInput){otroInput.style.display='block';otroInput.value=cadena;}
-    // Mark "Otra" button active
-    document.querySelectorAll(`#${prefix}-super-cadena .gas-veh`).forEach(b=>{
-      if(b.textContent.includes('Otra'))b.classList.add('active');
-    });
-  }
-}
 let catFiltro='mes';
 let currentCatId=null;
 
@@ -3262,7 +3197,7 @@ function openGVModal(editId){
     document.getElementById('gv-nota').value=g.nota||'';
     document.getElementById('gv-fecha').value=g.fecha||todayISO();
     document.getElementById('gv-quien').value=g.quien||currentUser?.id;
-    selCatV=g.categoria||'ventas';
+    selCatV=g.categoria||'cuota_socio';
     if(g.foto_url)loadExistingPhoto('gv',g.foto_url,g.foto_path||null);
   }else{
     document.getElementById('gv-imp').value='';
@@ -3270,7 +3205,7 @@ function openGVModal(editId){
     document.getElementById('gv-nota').value='';
     document.getElementById('gv-fecha').value=todayISO();
     document.getElementById('gv-quien').value=currentUser?.id||'';
-    selCatV='ventas';
+    selCatV='cuota_socio';
   }
   highlightCat('gv-cat',selCatV,'v');openModal('modal-gv');
 }
@@ -3312,8 +3247,8 @@ function selectCat(cid,catId,type){
     document.getElementById(`gh-cat-fijos-${catId}`)?.classList.add('sel');
     document.getElementById(`gh-cat-${catId}`)?.classList.add('sel');
     const lugarSection=document.getElementById('gh-lugar-section');
-    if(lugarSection)lugarSection.style.display=(catId==='restaurante'||catId==='ocio')?'':'none';
-    if(catId!=='restaurante'&&catId!=='ocio')rmPhoto('ghl');
+    if(lugarSection)lugarSection.style.display=catId==='ocio'?'':'none';
+    if(catId!=='ocio')rmPhoto('ghl');
     updateGHLugarLabel(catId);
     // Enlace y ubicación — solo Ocio
     const enlaceSecH=document.getElementById('gh-enlace-section');
@@ -3328,10 +3263,6 @@ function selectCat(cid,catId,type){
     // Ocultar nota en gasolina, mostrar en el resto
     const notaSection=document.getElementById('gh-nota-section');
     if(notaSection)notaSection.style.display=catId==='gasolina'?'none':'';
-    // Supermercado section
-    const superSecH=document.getElementById('gh-super-section');
-    if(superSecH)superSecH.style.display=catId==='supermercado'?'':'none';
-    if(catId!=='supermercado')resetCadenaSuper('gh');
     // Seguros section
     const seguroSecH=document.getElementById('gh-seguro-section');
     if(seguroSecH)seguroSecH.style.display=catId==='seguros'?'':'none';
