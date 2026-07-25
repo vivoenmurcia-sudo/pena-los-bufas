@@ -18,10 +18,10 @@
   import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
   import { getAuth, signInWithPopup, signOut, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   const firebaseConfig = {
-    apiKey:"AIzaSyDQppPeCxrIJryKbbzdnbfPnBNogOaHg7w",authDomain:"familia-gastos.firebaseapp.com",
-    databaseURL:"https://familia-gastos-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId:"familia-gastos",storageBucket:"familia-gastos.firebasestorage.app",
-    messagingSenderId:"190164874947",appId:"1:190164874947:web:f43becae3fe80b439ad476"
+    apiKey:"AIzaSyAtw2fm21TttNeY61MpzfHKCgfhpOUKXfA",authDomain:"los-bufas.firebaseapp.com",
+    databaseURL:"https://los-bufas-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId:"los-bufas",storageBucket:"los-bufas.firebasestorage.app",
+    messagingSenderId:"1017090583367",appId:"1:1017090583367:web:abf66e34f35bb7979aba62"
   };
   const app=initializeApp(firebaseConfig),db=getDatabase(app),storage=getStorage(app),auth=getAuth(app),prov=new GoogleAuthProvider();
   window._db=db;window._storage=storage;window._sRef=sRef;window._uploadBytes=uploadBytes;
@@ -714,10 +714,7 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
     <div class="frow">
       <div class="fg"><label class="flabel">Fecha</label><input type="date" class="finput" id="gh-fecha"></div>
       <div class="fg"><label class="flabel">Quién pagó</label>
-        <select class="finput" id="gh-quien">
-          <option value="papa">Papá</option><option value="mama">Mamá</option>
-          <option value="david">David</option><option value="mario">Mario</option>
-        </select></div>
+        <select class="finput" id="gh-quien"></select></div>
     </div>
     <div class="ftoggle-row">
       <div><div class="ftoggle-lbl">🔄 Gasto recurrente</div><div class="ftoggle-sub">Se repite todos los meses</div></div>
@@ -978,16 +975,10 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
 <script>
 // ══ CONSTANTS ══
 const ROLES={
-  'david.rodrinava3@gmail.com':{role:'member',name:'David',avClass:'av-d',letter:'D',id:'david'},
-  'mariorubikfutbol@gmail.com':{role:'member',name:'Mario',avClass:'av-m',letter:'M',id:'mario'},
-  'vivoenmurcia@gmail.com':    {role:'admin', name:'Papá', avClass:'av-p',letter:'P',id:'papa'},
-  'r.navarro.verdu@gmail.com': {role:'admin', name:'Mamá', avClass:'av-ma',letter:'Mamá',id:'mama'},
+  'vivoenmurcia@gmail.com': {role:'admin', name:'Admin', avClass:'av-p',letter:'A',id:'admin'},
 };
 const FAMILY=[
-  {id:'papa', name:'Papá', avClass:'av-p', letter:'P'},
-  {id:'mama', name:'Mamá', avClass:'av-ma',letter:'Mamá'},
-  {id:'david',name:'David',avClass:'av-d', letter:'D'},
-  {id:'mario',name:'Mario',avClass:'av-m', letter:'M'},
+  {id:'admin', name:'Admin', avClass:'av-p', letter:'A'},
 ];
 const CAT_FIJOS=[
   {id:'hipoteca',   icon:'🏠',label:'Hipoteca/Alquiler', color:'#0ea5e9'},
@@ -2005,6 +1996,7 @@ function openGHModal(editId){
   document.getElementById('modal-gh-title').textContent=editId?'✏️ Editar gasto':'➕ Nuevo gasto';
   buildCatPicker('gh-cat-fijos',CAT_FIJOS,'h');
   buildCatPicker('gh-cat',CAT_HOGAR,'h');
+  document.getElementById('gh-quien').innerHTML=FAMILY.map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
   rmPhoto('gh');rmPhoto('ghl');document.getElementById('budget-warn-box').style.display='none';
   let legacyTipoSeguro=null;
   if(editId&&hogarData[editId]){
@@ -2013,7 +2005,7 @@ function openGHModal(editId){
     document.getElementById('gh-desc').value=g.descripcion||'';
     document.getElementById('gh-nota').value=g.nota||'';
     document.getElementById('gh-fecha').value=g.fecha||todayISO();
-    document.getElementById('gh-quien').value=g.quien||'papa';
+    document.getElementById('gh-quien').value=g.quien||currentUser?.id||'';
     document.getElementById('gh-rec').checked=!!g.recurrente;
     selCatH=g.categoria||'supermercado';
     // Migración suave: los gastos antiguos de "Seguro coche"/"Seguro médico" pasan a la
@@ -2031,7 +2023,7 @@ function openGHModal(editId){
     document.getElementById('gh-desc').value='';
     document.getElementById('gh-nota').value='';
     document.getElementById('gh-fecha').value=todayISO();
-    document.getElementById('gh-quien').value=currentUser?.id||'papa';
+    document.getElementById('gh-quien').value=currentUser?.id||'';
     document.getElementById('gh-rec').checked=false;
     selCatH='supermercado';
     const enlaceElNew=document.getElementById('gh-enlace');
