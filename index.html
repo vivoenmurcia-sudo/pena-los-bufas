@@ -72,6 +72,9 @@ body{background:#f4f2ec;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',
 /* TOPBAR */
 .topbar{background:#122018;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.25)}
 .topbar-brand{display:flex;align-items:center;gap:8px;font-size:.92rem;font-weight:800;color:white}
+.socios-btn{background:rgba(255,255,255,.1);border:none;color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:.95rem;display:flex;align-items:center;justify-content:center;transition:background .15s}
+.socios-btn:hover{background:rgba(255,255,255,.2)}
+.socios-btn.active{background:rgba(255,255,255,.28)}
 .topbar-right{display:flex;align-items:center;gap:8px}
 .user-chip{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.1);border-radius:20px;padding:4px 10px 4px 4px}
 .user-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;color:white;flex-shrink:0}
@@ -471,6 +474,7 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
   <div class="topbar">
     <div class="topbar-brand"><span>💰</span> PEÑA LOS BUFAS</div>
     <div class="topbar-right">
+      <button class="socios-btn" id="btn-tab-socios" onclick="switchMain('socios',this)" title="Socios">⚙️</button>
       <div class="user-chip">
         <div class="user-avatar" id="top-av"></div>
         <span class="user-name" id="top-name"></span>
@@ -481,7 +485,7 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
   <div class="main-nav">
     <button class="main-tab active" id="btn-tab-hogar" onclick="switchMain('hogar',this)"><span class="tab-icon">💳</span><span>GASTOS</span></button>
     <button class="main-tab v-tab" id="btn-tab-viajes" onclick="switchMain('viajes',this)"><span class="tab-icon">💰</span><span>INGRESOS</span></button>
-    <button class="main-tab" id="btn-tab-socios" onclick="switchMain('socios',this)" style="display:none"><span class="tab-icon">⚙️</span><span>SOCIOS</span></button>
+    <button class="main-tab" id="btn-tab-balance" onclick="switchMain('balance',this)"><span class="tab-icon">⚖️</span><span>BALANCE</span></button>
   </div>
 
   <div class="container">
@@ -619,12 +623,17 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
       </div>
     </div>
 
-    <!-- SOCIOS (solo superusuario) -->
+    <!-- BALANCE -->
+    <div id="sec-balance" class="section">
+      <div id="balance-content"></div>
+    </div>
+
+    <!-- SOCIOS -->
     <div id="sec-socios" class="section">
-      <div class="card" style="margin-bottom:.85rem">
+      <div class="card" style="margin-bottom:.85rem" id="soc-invite-card">
         <div class="card-title">➕ Invitar nuevo socio</div>
-        <div class="fg"><label class="flabel">Email de Google</label>
-          <input type="email" class="finput" id="soc-email" placeholder="nombre@gmail.com"></div>
+        <div class="fg"><label class="flabel">Email de Google <span style="color:#cbd5e1;font-weight:400">(no hace falta que sea @gmail.com)</span></label>
+          <input type="email" class="finput" id="soc-email" placeholder="nombre@ejemplo.com"></div>
         <div class="fg"><label class="flabel">Nombre</label>
           <input type="text" class="finput" id="soc-nombre" placeholder="Ej: Carlos, Pedro..."></div>
         <div class="soc-msg" id="soc-msg"></div>
@@ -709,10 +718,10 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
       <label class="flabel">🛒 Cadena de supermercado</label>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px" id="gh-super-cadena">
         <div class="gas-veh active" style="flex:none;padding:8px 14px" onclick="selectCadena('gh','Mercadona',this)">🟢 Mercadona</div>
-        <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectCadena('gh','Lidl',this)">🔵 Lidl</div>
-        <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectCadena('gh','Carrefour',this)">🟠 Carrefour</div>
         <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectCadena('gh','DIA',this)">🔴 DIA</div>
-        <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectCadena('gh','SuperPlus',this)">🟣 SuperPlus</div>
+        <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectCadena('gh','Coviran',this)">🟡 Coviran</div>
+        <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectCadena('gh','Burguillos',this)">🟠 Burguillos</div>
+        <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectCadena('gh','Lolica',this)">🟣 Lolica</div>
         <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectCadena('gh','otro',this)">✏️ Otra</div>
       </div>
       <input type="text" class="finput" id="gh-super-otro" placeholder="Nombre del supermercado..." style="display:none">
@@ -1003,14 +1012,9 @@ function avClassFor(str){
   return AV_PALETTE[h%AV_PALETTE.length];
 }
 const CAT_FIJOS=[
-  {id:'hipoteca',   icon:'🏠',label:'Hipoteca/Alquiler', color:'#0ea5e9'},
+  {id:'hipoteca',   icon:'🏠',label:'Alquiler',          color:'#0ea5e9'},
   {id:'luz',        icon:'💡',label:'Luz',               color:'#f59e0b'},
   {id:'agua',       icon:'💧',label:'Agua',              color:'#3b82f6'},
-  {id:'telefono',   icon:'📱',label:'Teléfono móvil',    color:'#8b5cf6'},
-  {id:'internet',   icon:'🌐',label:'Internet',          color:'#6366f1'},
-  {id:'seguros',    icon:'🛡️',label:'Seguros',          color:'#ef4444'},
-  {id:'streaming',  icon:'📺',label:'Streaming',         color:'#ec4899'},
-  {id:'comunidad',  icon:'🗑️',label:'Comunidad/Basuras', color:'#94a3b8'},
 ];
 // Categorías antiguas de seguros — ya no se pueden elegir, pero se mantienen aquí
 // solo para que los gastos ya guardados con estas categorías sigan mostrando su icono/etiqueta correctos.
@@ -1023,13 +1027,8 @@ const CAT_LEGACY=[
 const FIJO_IDS=[...CAT_FIJOS.map(c=>c.id),...CAT_LEGACY.map(c=>c.id)];
 const CAT_HOGAR=[
   {id:'supermercado',icon:'🛒',label:'Supermercado',color:'#22c55e'},
-  {id:'casa',        icon:'🏠',label:'Casa',         color:'#3b82f6'},
-  {id:'farmacia',    icon:'💊',label:'Farmacia',     color:'#ef4444'},
-  {id:'coche',       icon:'🚗',label:'Coche',        color:'#6366f1'},
-  {id:'gasolina',    icon:'⛽',label:'Gasolina',     color:'#f59e0b'},
-  {id:'colegio',     icon:'🎓',label:'Colegio',      color:'#f59e0b'},
+  {id:'casa',        icon:'🔨',label:'Reformas Peña',color:'#3b82f6'},
   {id:'restaurante', icon:'🍽️',label:'Restaurante',  color:'#f97316'},
-  {id:'ropa',        icon:'👕',label:'Ropa',         color:'#ec4899'},
   {id:'ocio',        icon:'🎭🎡',label:'Ocio',         color:'#8b5cf6'},
   {id:'otros',       icon:'📦',label:'Otros',        color:'#94a3b8'},
 ];
@@ -1037,11 +1036,10 @@ const ALL_CATS=[...CAT_FIJOS,...CAT_HOGAR,...CAT_LEGACY];
 function getCatAll(id){return ALL_CATS.find(c=>c.id===id)||CAT_HOGAR[CAT_HOGAR.length-1];}
 
 const CAT_VIAJE=[
-  {id:'cuotas',       icon:'🧑‍🤝‍🧑',label:'Cuotas socios',      color:'#0ea5e9'},
-  {id:'ventas',       icon:'🛍️',label:'Ventas',             color:'#16a34a'},
-  {id:'eventos',      icon:'🎉',label:'Eventos',            color:'#f59e0b'},
-  {id:'subvenciones', icon:'🏛️',label:'Subvenciones/Ayudas', color:'#8b5cf6'},
-  {id:'otros',        icon:'💶',label:'Otros ingresos',     color:'#94a3b8'},
+  {id:'cuota_socio', icon:'🧑‍🤝‍🧑',label:'Cuota socio',       color:'#0ea5e9'},
+  {id:'cuota_amigo', icon:'🙋',label:'Cuota Amigo',        color:'#16a34a'},
+  {id:'subvenciones',icon:'🏛️',label:'Subvenciones/Ayudas', color:'#8b5cf6'},
+  {id:'otros',       icon:'💶',label:'Otros',              color:'#94a3b8'},
 ];
 const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const MESES_CORTO=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
@@ -1361,7 +1359,7 @@ function showApp(p){
   const av=document.getElementById('top-av');av.className='user-avatar '+p.avClass;av.textContent=p.letter;
   document.getElementById('top-name').textContent=p.name;
   document.getElementById('btn-presupuestos').style.display=p.role==='admin'?'':'none';
-  document.getElementById('btn-tab-socios').style.display=p.email===OWNER_EMAIL?'':'none';
+  document.getElementById('soc-invite-card').style.display=p.email===OWNER_EMAIL?'':'none';
   buildYearSelect();buildMonthPills();
   startLsn();updateFab();
 }
@@ -1421,11 +1419,14 @@ function stopLsn(){[lsnH,lsnV,lsnC,lsnSocios].forEach(l=>{if(l)l();});lsnH=lsnV=
 // ══ NAV ══
 function switchMain(tab,btn){
   mainTab=tab;
-  document.querySelectorAll('.main-tab').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');
+  document.querySelectorAll('.main-tab').forEach(b=>b.classList.remove('active'));if(btn&&btn.classList.contains('main-tab'))btn.classList.add('active');
+  document.getElementById('btn-tab-socios').classList.toggle('active',tab==='socios');
   document.getElementById('sec-hogar').classList.toggle('active',tab==='hogar');
   document.getElementById('sec-viajes').classList.toggle('active',tab==='viajes');
+  document.getElementById('sec-balance').classList.toggle('active',tab==='balance');
   document.getElementById('sec-socios').classList.toggle('active',tab==='socios');
   if(tab==='socios')renderSociosList();
+  if(tab==='balance')loadBalance();
   updateFab();
 }
 function switchHogarSub(sub,btn){
@@ -2014,6 +2015,7 @@ function goToMonth(num){
 // ══ SOCIOS (solo superusuario) ══
 function renderSociosList(){
   const el=document.getElementById('socios-list');
+  const isOwner=currentUser?.email===OWNER_EMAIL;
   const list=Object.entries(sociosData).sort(([,a],[,b])=>(a.name||'').localeCompare(b.name||''));
   if(!list.length){el.innerHTML='<div class="empty" style="padding:1rem"><div class="et">Todavía no hay socios</div></div>';return;}
   el.innerHTML=list.map(([key,v])=>{
@@ -2022,14 +2024,15 @@ function renderSociosList(){
       <div class="person-row-left">
         <div class="user-avatar ${av}" style="width:34px;height:34px;font-size:11px">${letter}</div>
         <div><div style="font-size:.85rem;font-weight:800">${esc(v.name||'Sin nombre')}${v.owner?' <span style="font-size:.65rem;color:#94a3b8;font-weight:600">· superusuario</span>':''}</div>
-        <div style="font-size:.72rem;color:#94a3b8">${esc(v.email||'')}</div></div>
+        ${isOwner?`<div style="font-size:.72rem;color:#94a3b8">${esc(v.email||'')}</div>`:''}</div>
       </div>
-      ${v.owner?'':`<button class="iBtn dl" onclick="delSocio('${key}','${esc(v.name||v.email||'')}')">🗑️</button>`}
+      ${(isOwner&&!v.owner)?`<button class="iBtn dl" onclick="delSocio('${key}','${esc(v.name||v.email||'')}')">🗑️</button>`:''}
     </div><div class="divider"></div>`;
   }).join('');
 }
 
 async function addSocio(){
+  if(currentUser?.email!==OWNER_EMAIL){toast('❌ Solo el administrador puede invitar socios');return;}
   const msgEl=document.getElementById('soc-msg');
   msgEl.textContent='';msgEl.style.color='';
   const email=document.getElementById('soc-email').value.trim().toLowerCase();
@@ -2047,6 +2050,7 @@ async function addSocio(){
 }
 
 async function delSocio(key,name){
+  if(currentUser?.email!==OWNER_EMAIL){toast('❌ Solo el administrador puede quitar socios');return;}
   if(!confirm(`¿Quitar el acceso de ${name}? Ya no podrá entrar a la app.`))return;
   try{await dbDel(`socios/${key}`);toast('🗑️ Acceso retirado');}
   catch(e){console.error(e);toast('❌ Error al quitar el acceso');}
@@ -2737,10 +2741,10 @@ function exportGasolinaPDF(){
 // ══ SUPERMERCADO CADENA ══
 const CADENAS_SUPER=[
   {id:'Mercadona',label:'Mercadona',icon:'🟢'},
-  {id:'Lidl',label:'Lidl',icon:'🔵'},
-  {id:'Carrefour',label:'Carrefour',icon:'🟠'},
-  {id:'SuperPlus',label:'SuperPlus',icon:'🟣'},
   {id:'DIA',label:'DIA',icon:'🔴'},
+  {id:'Coviran',label:'Coviran',icon:'🟡'},
+  {id:'Burguillos',label:'Burguillos',icon:'🟠'},
+  {id:'Lolica',label:'Lolica',icon:'🟣'},
 ];
 let selCadenaSuper={gh:'Mercadona'};
 
@@ -3140,6 +3144,68 @@ async function loadAnualIng(){
 function goToMonthIng(num){
   currentMonthNum=num;buildMonthPills();attachHLsn();attachVLsn();
   switchIngSub('movimientos',document.querySelector('#ing-subnav .sub-pill'));
+}
+
+// ══ BALANCE (acumulado anual / total) ══
+const FOUNDING_YEAR=2025; // primer año con datos posibles; ajusta si hace falta
+let chartBalanceYears=null;
+async function loadBalance(){
+  const el=document.getElementById('balance-content');
+  el.innerHTML=`<div class="anual-loading"><div class="spinner" style="margin:0 auto 8px"></div>Calculando balance...</div>`;
+  const thisYear=new Date().getFullYear();
+  const years=[];
+  for(let y=FOUNDING_YEAR;y<=thisYear;y++)years.push(y);
+
+  const yearResults=await Promise.all(years.map(async y=>{
+    const monthKeys=Array.from({length:12},(_,i)=>`${y}-${pad(i+1)}`);
+    const months=await Promise.all(monthKeys.map(k=>Promise.all([dbGet(`gastos_hogar/${k}`),dbGet(`ingresos/${k}`)])));
+    let gastos=0,ingresos=0;
+    months.forEach(([g,i])=>{
+      gastos+=Object.values(g||{}).reduce((s,x)=>s+parseFloat(x.importe||0),0);
+      ingresos+=Object.values(i||{}).reduce((s,x)=>s+parseFloat(x.importe||0),0);
+    });
+    return{year:y,gastos,ingresos,balance:ingresos-gastos};
+  }));
+
+  const totalGastos=yearResults.reduce((s,y)=>s+y.gastos,0);
+  const totalIngresos=yearResults.reduce((s,y)=>s+y.ingresos,0);
+  const totalBalance=totalIngresos-totalGastos;
+  const isPos=totalBalance>=0;
+
+  let html=`<div class="anual-total-card" style="background:${isPos?'linear-gradient(135deg,#14532d,#166534)':'linear-gradient(135deg,#7f1d1d,#991b1b)'}">
+    <div class="anual-total-lbl">⚖️ Balance total acumulado</div>
+    <div class="anual-total-amount">${isPos?'+':'−'}${fmtEur(Math.abs(totalBalance))}</div>
+    <div class="anual-total-sub">↑ Ingresos: ${fmtEur(totalIngresos)} · ↓ Gastos: ${fmtEur(totalGastos)}</div>
+  </div>`;
+
+  html+=`<div class="card" style="margin:.85rem 0">
+    <div class="card-title">📊 Ingresos vs Gastos por año</div>
+    <div class="chart-container-sm"><canvas id="chart-balance-years"></canvas></div>
+  </div>`;
+
+  html+='<div class="anual-grid">'+yearResults.map(y=>{
+    const pos=y.balance>=0;
+    return`<div class="anual-card" style="border-left:3px solid ${pos?'#16a34a':'#ef4444'}">
+      <div class="anual-month-name">${y.year}</div>
+      <div class="anual-amount" style="color:${pos?'#16a34a':'#ef4444'}">${pos?'+':'−'}${fmtEur(Math.abs(y.balance))}</div>
+      <div class="anual-sub">↑${fmtEur(y.ingresos)} · ↓${fmtEur(y.gastos)}</div>
+    </div>`;
+  }).join('')+'</div>';
+
+  el.innerHTML=html;
+
+  if(chartBalanceYears){chartBalanceYears.destroy();chartBalanceYears=null;}
+  const ctx=document.getElementById('chart-balance-years');
+  if(ctx){
+    chartBalanceYears=new Chart(ctx.getContext('2d'),{
+      type:'bar',
+      data:{labels:yearResults.map(y=>String(y.year)),datasets:[
+        {label:'Ingresos',data:yearResults.map(y=>y.ingresos),backgroundColor:'#16a34a',borderRadius:6,borderSkipped:false},
+        {label:'Gastos',data:yearResults.map(y=>y.gastos),backgroundColor:'#ef4444',borderRadius:6,borderSkipped:false},
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:11,weight:'bold'},boxWidth:12,padding:10}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>v+'€',font:{size:10}},grid:{color:'#f1f5f9'}},x:{grid:{display:false},ticks:{font:{size:11,weight:'bold'}}}}}
+    });
+  }
 }
 
 // ══ INGRESOS: EXPORTAR PDF ══
