@@ -76,6 +76,8 @@ body{background:#f4f2ec;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',
 .user-chip{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.1);border-radius:20px;padding:4px 10px 4px 4px}
 .user-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;color:white;flex-shrink:0}
 .av-d{background:linear-gradient(135deg,#3b82f6,#1d4ed8)}.av-m{background:linear-gradient(135deg,#22c55e,#15803d)}.av-p{background:linear-gradient(135deg,#f59e0b,#d97706)}.av-ma{background:linear-gradient(135deg,#ec4899,#be185d)}
+.av-c0{background:linear-gradient(135deg,#3b82f6,#1d4ed8)}.av-c1{background:linear-gradient(135deg,#22c55e,#15803d)}.av-c2{background:linear-gradient(135deg,#f59e0b,#d97706)}.av-c3{background:linear-gradient(135deg,#ec4899,#be185d)}
+.av-c4{background:linear-gradient(135deg,#8b5cf6,#6d28d9)}.av-c5{background:linear-gradient(135deg,#06b6d4,#0e7490)}.av-c6{background:linear-gradient(135deg,#ef4444,#b91c1c)}.av-c7{background:linear-gradient(135deg,#84cc16,#4d7c0f)}
 .user-name{font-size:.75rem;font-weight:700;color:white}
 .signout-btn{padding:5px 11px;border:1px solid rgba(255,255,255,.2);border-radius:8px;background:transparent;cursor:pointer;font-size:.72rem;color:rgba(255,255,255,.7);font-weight:600;transition:all .2s}
 .signout-btn:hover{background:rgba(255,255,255,.1)}
@@ -479,6 +481,7 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
   <div class="main-nav">
     <button class="main-tab active" id="btn-tab-hogar" onclick="switchMain('hogar',this)"><span class="tab-icon">💳</span><span>GASTOS</span></button>
     <button class="main-tab v-tab" id="btn-tab-viajes" onclick="switchMain('viajes',this)"><span class="tab-icon">💰</span><span>INGRESOS</span></button>
+    <button class="main-tab" id="btn-tab-socios" onclick="switchMain('socios',this)" style="display:none"><span class="tab-icon">⚙️</span><span>SOCIOS</span></button>
   </div>
 
   <div class="container">
@@ -613,6 +616,23 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
 
       <div id="ing-anual" style="display:none">
         <div id="ing-anual-content"></div>
+      </div>
+    </div>
+
+    <!-- SOCIOS (solo superusuario) -->
+    <div id="sec-socios" class="section">
+      <div class="card" style="margin-bottom:.85rem">
+        <div class="card-title">➕ Invitar nuevo socio</div>
+        <div class="fg"><label class="flabel">Email de Google</label>
+          <input type="email" class="finput" id="soc-email" placeholder="nombre@gmail.com"></div>
+        <div class="fg"><label class="flabel">Nombre</label>
+          <input type="text" class="finput" id="soc-nombre" placeholder="Ej: Carlos, Pedro..."></div>
+        <div class="soc-msg" id="soc-msg"></div>
+        <button class="btn btn-vp" style="width:100%" onclick="addSocio()">Invitar socio 💾</button>
+      </div>
+      <div class="card">
+        <div class="card-title">👥 Socios con acceso</div>
+        <div id="socios-list"></div>
       </div>
     </div>
   </div>
@@ -974,12 +994,14 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
 
 <script>
 // ══ CONSTANTS ══
-const ROLES={
-  'vivoenmurcia@gmail.com': {role:'admin', name:'Admin', avClass:'av-p',letter:'A',id:'admin'},
-};
-const FAMILY=[
-  {id:'admin', name:'Admin', avClass:'av-p', letter:'A'},
-];
+const OWNER_EMAIL='vivoenmurcia@gmail.com'; // único con acceso a "Socios" (invitar/quitar)
+let FAMILY=[]; // se rellena dinámicamente desde /socios en la base de datos
+function emailToKey(email){return(email||'').toLowerCase().replace(/[.#$\[\]@]/g,'_');}
+const AV_PALETTE=['av-c0','av-c1','av-c2','av-c3','av-c4','av-c5','av-c6','av-c7'];
+function avClassFor(str){
+  let h=0;for(let i=0;i<(str||'').length;i++)h=(h*31+str.charCodeAt(i))>>>0;
+  return AV_PALETTE[h%AV_PALETTE.length];
+}
 const CAT_FIJOS=[
   {id:'hipoteca',   icon:'🏠',label:'Hipoteca/Alquiler', color:'#0ea5e9'},
   {id:'luz',        icon:'💡',label:'Luz',               color:'#f59e0b'},
@@ -1056,8 +1078,8 @@ let mainTab='hogar',hogarSub='gastos',ingSub='movimientos';
 let currentYear=new Date().getFullYear();
 let currentMonthNum=new Date().getMonth()+1;
 let get_currentMonth=()=>`${currentYear}-${pad(currentMonthNum)}`;
-let hogarData={},viajesData={},cfgData={};
-let lsnH=null,lsnV=null,lsnC=null;
+let hogarData={},viajesData={},cfgData={},sociosData={};
+let lsnH=null,lsnV=null,lsnC=null,lsnSocios=null;
 let editGHId=null,editGVId=null;
 let selCatH='supermercado',selCatV='comidas';
 let pendingFile={gh:null,gv:null,gvl:null,ghl:null};
@@ -1302,12 +1324,28 @@ async function doSignIn(){document.getElementById('login-error').textContent='';
 function doSignOut(){window._signOut();}
 
 document.addEventListener('db-ready',()=>{
-  window._onAuth(user=>{
+  window._onAuth(async user=>{
     if(user){
       const email=user.email?.toLowerCase();
-      const p=ROLES[email];
-      if(!p){document.getElementById('login-error').textContent=`Sin acceso: ${email}`;window._signOut();return;}
-      currentUser=p;currentRole=p.role;showApp(p);
+      const key=emailToKey(email);
+      let p=null;
+      try{
+        if(email===OWNER_EMAIL){
+          const firstName=(user.displayName||'Admin').split(' ')[0];
+          p={id:key,email,name:firstName,role:'admin',avClass:avClassFor(email),letter:firstName[0].toUpperCase()};
+          await dbSet(`socios/${key}`,{email,name:firstName,owner:true,addedAt:Date.now()}).catch(()=>{});
+        }else{
+          const socio=await dbGet(`socios/${key}`);
+          if(!socio){document.getElementById('login-error').textContent=`Sin acceso: ${email}. Pide al administrador que te invite.`;window._signOut();return;}
+          p={id:key,email,name:socio.name||email.split('@')[0],role:'admin',avClass:avClassFor(email),letter:(socio.name||email)[0].toUpperCase()};
+        }
+      }catch(e){
+        console.error(e);
+        document.getElementById('login-error').textContent='Error al comprobar el acceso. Inténtalo de nuevo.';
+        window._signOut();return;
+      }
+      currentUser=p;currentRole=p.role;
+      showApp(p);
     }else{
       document.getElementById('login-screen').style.display='flex';
       document.getElementById('app-screen').style.display='none';
@@ -1323,6 +1361,7 @@ function showApp(p){
   const av=document.getElementById('top-av');av.className='user-avatar '+p.avClass;av.textContent=p.letter;
   document.getElementById('top-name').textContent=p.name;
   document.getElementById('btn-presupuestos').style.display=p.role==='admin'?'':'none';
+  document.getElementById('btn-tab-socios').style.display=p.email===OWNER_EMAIL?'':'none';
   buildYearSelect();buildMonthPills();
   startLsn();updateFab();
 }
@@ -1364,12 +1403,20 @@ function onMonthSelect(num){
 
 // ══ LISTENERS ══
 function startLsn(){
-  stopLsn();attachHLsn();attachVLsn();
+  stopLsn();attachHLsn();attachVLsn();attachSociosLsn();
   lsnC=dbLsn('config_gastos',s=>{cfgData=s||{};if(hogarSub==='resumen')renderResumen();if(hogarSub==='presupuestos')renderPresupuestos();});
 }
 function attachHLsn(){if(lsnH){lsnH();lsnH=null;}lsnH=dbLsn(`gastos_hogar/${get_currentMonth()}`,s=>{hogarData=s||{};renderHGastos();updateHero();if(hogarSub==='resumen')renderResumen();});}
 function attachVLsn(){if(lsnV){lsnV();lsnV=null;}lsnV=dbLsn(`ingresos/${get_currentMonth()}`,s=>{viajesData=s||{};renderIngList();updateHeroIng();if(ingSub==='resumen')renderResumenIng();});}
-function stopLsn(){[lsnH,lsnV,lsnC].forEach(l=>{if(l)l();});lsnH=lsnV=lsnC=null;}
+function attachSociosLsn(){
+  if(lsnSocios){lsnSocios();lsnSocios=null;}
+  lsnSocios=dbLsn('socios',s=>{
+    sociosData=s||{};
+    FAMILY=Object.entries(sociosData).map(([key,v])=>({id:key,name:v.name||v.email||'?',email:v.email||'',avClass:avClassFor(v.email||key),letter:(v.name||v.email||'?')[0].toUpperCase(),owner:!!v.owner})).sort((a,b)=>a.name.localeCompare(b.name));
+    if(mainTab==='socios')renderSociosList();
+  });
+}
+function stopLsn(){[lsnH,lsnV,lsnC,lsnSocios].forEach(l=>{if(l)l();});lsnH=lsnV=lsnC=lsnSocios=null;}
 
 // ══ NAV ══
 function switchMain(tab,btn){
@@ -1377,6 +1424,8 @@ function switchMain(tab,btn){
   document.querySelectorAll('.main-tab').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');
   document.getElementById('sec-hogar').classList.toggle('active',tab==='hogar');
   document.getElementById('sec-viajes').classList.toggle('active',tab==='viajes');
+  document.getElementById('sec-socios').classList.toggle('active',tab==='socios');
+  if(tab==='socios')renderSociosList();
   updateFab();
 }
 function switchHogarSub(sub,btn){
@@ -1962,6 +2011,47 @@ function goToMonth(num){
 }
 
 // ══ PRESUPUESTOS ══
+// ══ SOCIOS (solo superusuario) ══
+function renderSociosList(){
+  const el=document.getElementById('socios-list');
+  const list=Object.entries(sociosData).sort(([,a],[,b])=>(a.name||'').localeCompare(b.name||''));
+  if(!list.length){el.innerHTML='<div class="empty" style="padding:1rem"><div class="et">Todavía no hay socios</div></div>';return;}
+  el.innerHTML=list.map(([key,v])=>{
+    const av=avClassFor(v.email||key),letter=(v.name||v.email||'?')[0].toUpperCase();
+    return`<div class="person-row">
+      <div class="person-row-left">
+        <div class="user-avatar ${av}" style="width:34px;height:34px;font-size:11px">${letter}</div>
+        <div><div style="font-size:.85rem;font-weight:800">${esc(v.name||'Sin nombre')}${v.owner?' <span style="font-size:.65rem;color:#94a3b8;font-weight:600">· superusuario</span>':''}</div>
+        <div style="font-size:.72rem;color:#94a3b8">${esc(v.email||'')}</div></div>
+      </div>
+      ${v.owner?'':`<button class="iBtn dl" onclick="delSocio('${key}','${esc(v.name||v.email||'')}')">🗑️</button>`}
+    </div><div class="divider"></div>`;
+  }).join('');
+}
+
+async function addSocio(){
+  const msgEl=document.getElementById('soc-msg');
+  msgEl.textContent='';msgEl.style.color='';
+  const email=document.getElementById('soc-email').value.trim().toLowerCase();
+  const nombre=document.getElementById('soc-nombre').value.trim();
+  if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){msgEl.style.color='#ef4444';msgEl.textContent='⚠️ Introduce un email válido';return;}
+  if(!nombre){msgEl.style.color='#ef4444';msgEl.textContent='⚠️ Introduce un nombre';return;}
+  const key=emailToKey(email);
+  if(sociosData[key]){msgEl.style.color='#ef4444';msgEl.textContent='⚠️ Ese email ya tiene acceso';return;}
+  try{
+    await dbSet(`socios/${key}`,{email,name:nombre,addedAt:Date.now()});
+    document.getElementById('soc-email').value='';document.getElementById('soc-nombre').value='';
+    msgEl.style.color='#16a34a';msgEl.textContent='✅ Socio invitado — ya puede entrar con Google';
+    toast('✅ Socio añadido');
+  }catch(e){console.error(e);msgEl.style.color='#ef4444';msgEl.textContent='❌ Error al guardar';}
+}
+
+async function delSocio(key,name){
+  if(!confirm(`¿Quitar el acceso de ${name}? Ya no podrá entrar a la app.`))return;
+  try{await dbDel(`socios/${key}`);toast('🗑️ Acceso retirado');}
+  catch(e){console.error(e);toast('❌ Error al quitar el acceso');}
+}
+
 function renderPresupuestos(){
   if(currentRole!=='admin'){document.getElementById('budget-grid').innerHTML='<p style="color:#94a3b8">Solo administradores.</p>';return;}
   const pres=cfgData.presupuestos||{};
