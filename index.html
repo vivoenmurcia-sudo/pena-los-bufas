@@ -1342,9 +1342,14 @@ document.addEventListener('db-ready',()=>{
       let p=null;
       try{
         if(email===OWNER_EMAIL){
-          const firstName=(user.displayName||'Admin').split(' ')[0];
+          const existing=await dbGet(`socios/${key}`);
+          const firstName=existing?.name||(user.displayName||'Admin').split(' ')[0];
           p={id:key,email,name:firstName,role:'admin',avClass:avClassFor(email),letter:firstName[0].toUpperCase()};
-          await dbSet(`socios/${key}`,{email,name:firstName,owner:true,addedAt:Date.now()}).catch(e=>{console.error('No se pudo auto-registrar el superusuario en /socios:',e);});
+          if(!existing){
+            await dbSet(`socios/${key}`,{email,name:firstName,owner:true,addedAt:Date.now()}).catch(e=>{console.error('No se pudo auto-registrar el superusuario en /socios:',e);});
+          }else if(!existing.owner){
+            await dbUpd(`socios/${key}`,{owner:true}).catch(()=>{});
+          }
         }else{
           const socio=await dbGet(`socios/${key}`);
           if(!socio){document.getElementById('login-error').textContent=`Sin acceso: ${email}. Pide al administrador que te invite.`;window._signOut();return;}
