@@ -612,6 +612,15 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
           <div class="chart-container-sm"><canvas id="chart-ing-bar"></canvas></div>
         </div>
         <div class="card">
+          <div class="card-title">🔎 Por franja de fechas</div>
+          <div class="frow">
+            <div class="fg"><label class="flabel">Desde</label><input type="date" class="finput" id="ing-rango-start"></div>
+            <div class="fg"><label class="flabel">Hasta</label><input type="date" class="finput" id="ing-rango-end"></div>
+          </div>
+          <button class="btn btn-vp" style="width:100%;margin-bottom:.5rem" onclick="calcIngRango()">Calcular 🔎</button>
+          <div id="ing-rango-result"></div>
+        </div>
+        <div class="card">
           <div class="card-title">Desglose por categoría</div>
           <div id="ing-cat-breakdown"></div>
         </div>
@@ -625,6 +634,15 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
     <!-- BALANCE -->
     <div id="sec-balance" class="section">
       <div id="balance-content"></div>
+      <div class="card">
+        <div class="card-title">🔎 Balance por franja de fechas</div>
+        <div class="frow">
+          <div class="fg"><label class="flabel">Desde</label><input type="date" class="finput" id="bal-rango-start"></div>
+          <div class="fg"><label class="flabel">Hasta</label><input type="date" class="finput" id="bal-rango-end"></div>
+        </div>
+        <button class="btn btn-vp" style="width:100%;margin-bottom:.5rem" onclick="calcBalanceRango()">Calcular 🔎</button>
+        <div id="bal-rango-result"></div>
+      </div>
     </div>
 
     <!-- SOCIOS -->
@@ -2036,7 +2054,7 @@ function renderSociosList(){
     return`<div class="person-row">
       <div class="person-row-left">
         <div class="user-avatar ${av}" style="width:34px;height:34px;font-size:11px">${letter}</div>
-        <div><div style="font-size:.85rem;font-weight:800">${esc(v.name||'Sin nombre')}${v.owner?' <span style="font-size:.65rem;color:#94a3b8;font-weight:600">· superusuario</span>':''}</div>
+        <div><div style="font-size:.85rem;font-weight:800">${esc(v.name||'Sin nombre')}${(isOwner&&v.owner)?' <span style="font-size:.65rem;color:#94a3b8;font-weight:600">· superusuario</span>':''}</div>
         ${isOwner?`<div style="font-size:.72rem;color:#94a3b8">${esc(v.email||'')}</div>`:''}</div>
       </div>
       ${(isOwner&&!v.owner)?`<button class="iBtn dl" onclick="delSocio('${key}','${esc(v.name||v.email||'')}')">🗑️</button>`:''}
@@ -3113,6 +3131,7 @@ function goToMonthIng(num){
 // ══ BALANCE (acumulado anual / total) ══
 const FOUNDING_YEAR=2025; // primer año con datos posibles; ajusta si hace falta
 let chartBalanceYears=null;
+let lastBalanceAnual=null,lastBalRango=null,lastIngRango=null;
 async function loadBalance(){
   const el=document.getElementById('balance-content');
   el.innerHTML=`<div class="anual-loading"><div class="spinner" style="margin:0 auto 8px"></div>Calculando balance...</div>`;
@@ -3135,12 +3154,14 @@ async function loadBalance(){
   const totalIngresos=yearResults.reduce((s,y)=>s+y.ingresos,0);
   const totalBalance=totalIngresos-totalGastos;
   const isPos=totalBalance>=0;
+  lastBalanceAnual={yearResults,totalGastos,totalIngresos,totalBalance};
 
   let html=`<div class="anual-total-card" style="background:${isPos?'linear-gradient(135deg,#14532d,#166534)':'linear-gradient(135deg,#7f1d1d,#991b1b)'}">
     <div class="anual-total-lbl">⚖️ Balance total acumulado</div>
     <div class="anual-total-amount">${isPos?'+':'−'}${fmtEur(Math.abs(totalBalance))}</div>
     <div class="anual-total-sub">↑ Ingresos: ${fmtEur(totalIngresos)} · ↓ Gastos: ${fmtEur(totalGastos)}</div>
-  </div>`;
+  </div>
+  <button class="export-btn" style="margin:.6rem 0" onclick="exportBalanceAnualPDF()">📄 Exportar resumen anual en PDF</button>`;
 
   html+=`<div class="card" style="margin:.85rem 0">
     <div class="card-title">📊 Ingresos vs Gastos por año</div>
@@ -3170,6 +3191,129 @@ async function loadBalance(){
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:11,weight:'bold'},boxWidth:12,padding:10}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>v+'€',font:{size:10}},grid:{color:'#f1f5f9'}},x:{grid:{display:false},ticks:{font:{size:11,weight:'bold'}}}}}
     });
   }
+}
+
+function exportBalanceAnualPDF(){
+  if(!lastBalanceAnual)return;
+  const {yearResults,totalGastos,totalIngresos,totalBalance}=lastBalanceAnual;
+  const isPos=totalBalance>=0;
+  const rowsHtml=yearResults.map(y=>{const pos=y.balance>=0;return`<tr><td>${y.year}</td><td class="num">${fmtEur(y.ingresos)}</td><td class="num">${fmtEur(y.gastos)}</td><td class="num" style="color:${pos?'#16a34a':'#ef4444'}">${pos?'+':'−'}${fmtEur(Math.abs(y.balance))}</td></tr>`;}).join('');
+  const w=window.open('','_blank');
+  w.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Balance total · PEÑA LOS BUFAS</title>'
+  +'<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#0f172a;padding:2rem;max-width:800px;margin:0 auto;font-size:14px}'
+  +'h1{font-size:1.8rem;font-weight:900;margin-bottom:.2rem}.sub{color:#64748b;margin-bottom:1.5rem;font-size:.85rem}'
+  +'.print-btn{padding:10px 20px;background:'+(isPos?'#16a34a':'#ef4444')+';color:white;border:none;border-radius:8px;cursor:pointer;font-weight:700;margin-bottom:1.5rem}'
+  +'.box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1rem;text-align:center;margin-bottom:1.5rem}'
+  +'.box .v{font-size:2rem;font-weight:900;color:'+(isPos?'#16a34a':'#ef4444')+'}.box .l{font-size:.75rem;color:#94a3b8;font-weight:700;text-transform:uppercase;margin-top:4px}'
+  +'table{width:100%;border-collapse:collapse}th{background:#f1f5f9;padding:.55rem .75rem;text-align:left;font-size:.7rem;text-transform:uppercase;color:#64748b}'
+  +'td{padding:.6rem .75rem;border-bottom:1px solid #f1f5f9;font-size:.9rem}.num{text-align:right;font-weight:700}'
+  +'@media print{.print-btn{display:none}}</style></head><body>'
+  +'<button class="print-btn" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>'
+  +'<h1>⚖️ Balance total acumulado</h1>'
+  +'<div class="sub">💰 PEÑA LOS BUFAS · Exportado el '+new Date().toLocaleDateString('es-ES')+'</div>'
+  +'<div class="box"><div class="v">'+(isPos?'+':'−')+fmtEur(Math.abs(totalBalance))+'</div><div class="l">Balance total · Ingresos '+fmtEur(totalIngresos)+' · Gastos '+fmtEur(totalGastos)+'</div></div>'
+  +'<table><thead><tr><th>Año</th><th>Ingresos</th><th>Gastos</th><th>Balance</th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'
+  +'</body></html>');
+  w.document.close();
+}
+
+async function calcBalanceRango(){
+  const start=document.getElementById('bal-rango-start').value;
+  const end=document.getElementById('bal-rango-end').value;
+  if(!start||!end){toast('⚠️ Elige fecha de inicio y fin');return;}
+  if(start>end){toast('⚠️ La fecha de inicio debe ser anterior a la de fin');return;}
+  const resEl=document.getElementById('bal-rango-result');
+  resEl.innerHTML='<div class="anual-loading"><div class="spinner" style="margin:0 auto 8px"></div>Calculando...</div>';
+  const months=monthsBetween(start,end);
+  const results=await Promise.all(months.map(k=>Promise.all([dbGet(`gastos_hogar/${k}`),dbGet(`ingresos/${k}`)])));
+  let gastos=0,ingresos=0;
+  results.forEach(([g,i])=>{
+    Object.values(g||{}).forEach(x=>{if(x.fecha>=start&&x.fecha<=end)gastos+=parseFloat(x.importe||0);});
+    Object.values(i||{}).forEach(x=>{if(x.fecha>=start&&x.fecha<=end)ingresos+=parseFloat(x.importe||0);});
+  });
+  const balance=ingresos-gastos,isPos=balance>=0;
+  lastBalRango={start,end,gastos,ingresos,balance};
+  resEl.innerHTML=`<div class="anual-total-card" style="background:${isPos?'linear-gradient(135deg,#14532d,#166534)':'linear-gradient(135deg,#7f1d1d,#991b1b)'}">
+    <div class="anual-total-lbl">${fmtDate(start)} — ${fmtDate(end)}</div>
+    <div class="anual-total-amount">${isPos?'+':'−'}${fmtEur(Math.abs(balance))}</div>
+    <div class="anual-total-sub">↑ Ingresos: ${fmtEur(ingresos)} · ↓ Gastos: ${fmtEur(gastos)}</div>
+  </div>
+  <button class="export-btn" style="margin-top:.6rem" onclick="exportBalanceRangoPDF()">📄 Exportar este rango en PDF</button>`;
+}
+
+function exportBalanceRangoPDF(){
+  if(!lastBalRango)return;
+  const {start,end,gastos,ingresos,balance}=lastBalRango;
+  const isPos=balance>=0;
+  const w=window.open('','_blank');
+  w.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Balance por franja · PEÑA LOS BUFAS</title>'
+  +'<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#0f172a;padding:2rem;max-width:800px;margin:0 auto;font-size:14px}'
+  +'h1{font-size:1.8rem;font-weight:900;margin-bottom:.2rem}.sub{color:#64748b;margin-bottom:1.5rem;font-size:.85rem}'
+  +'.print-btn{padding:10px 20px;background:'+(isPos?'#16a34a':'#ef4444')+';color:white;border:none;border-radius:8px;cursor:pointer;font-weight:700;margin-bottom:1.5rem}'
+  +'.box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1rem;text-align:center}'
+  +'.box .v{font-size:2rem;font-weight:900;color:'+(isPos?'#16a34a':'#ef4444')+'}.box .l{font-size:.75rem;color:#94a3b8;font-weight:700;text-transform:uppercase;margin-top:4px}'
+  +'@media print{.print-btn{display:none}}</style></head><body>'
+  +'<button class="print-btn" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>'
+  +'<h1>⚖️ Balance · '+fmtDate(start)+' — '+fmtDate(end)+'</h1>'
+  +'<div class="sub">💰 PEÑA LOS BUFAS · Exportado el '+new Date().toLocaleDateString('es-ES')+'</div>'
+  +'<div class="box"><div class="v">'+(isPos?'+':'−')+fmtEur(Math.abs(balance))+'</div><div class="l">Ingresos '+fmtEur(ingresos)+' · Gastos '+fmtEur(gastos)+'</div></div>'
+  +'</body></html>');
+  w.document.close();
+}
+
+async function calcIngRango(){
+  const start=document.getElementById('ing-rango-start').value;
+  const end=document.getElementById('ing-rango-end').value;
+  if(!start||!end){toast('⚠️ Elige fecha de inicio y fin');return;}
+  if(start>end){toast('⚠️ La fecha de inicio debe ser anterior a la de fin');return;}
+  const resEl=document.getElementById('ing-rango-result');
+  resEl.innerHTML='<div class="anual-loading"><div class="spinner" style="margin:0 auto 8px"></div>Calculando...</div>';
+  const months=monthsBetween(start,end);
+  const results=await Promise.all(months.map(k=>dbGet(`ingresos/${k}`)));
+  const entries=[];
+  results.forEach(data=>Object.values(data||{}).forEach(x=>{if(x.fecha>=start&&x.fecha<=end)entries.push(x);}));
+  const total=entries.reduce((s,g)=>s+parseFloat(g.importe||0),0);
+  const catData=CAT_VIAJE.map(c=>({...c,spent:entries.filter(g=>g.categoria===c.id).reduce((s,g)=>s+parseFloat(g.importe||0),0)})).filter(c=>c.spent>0).sort((a,b)=>b.spent-a.spent);
+  lastIngRango={start,end,total,count:entries.length,catData};
+  resEl.innerHTML=`<div class="anual-total-card" style="background:linear-gradient(135deg,#14532d,#166534)">
+    <div class="anual-total-lbl">${fmtDate(start)} — ${fmtDate(end)}</div>
+    <div class="anual-total-amount">${fmtEur(total)}</div>
+    <div class="anual-total-sub">${entries.length} movimiento${entries.length!==1?'s':''}</div>
+  </div>
+  ${catData.map(c=>`<div class="cat-row" style="border-radius:8px;padding:.5rem"><div class="cat-rh"><div class="cat-rl"><div class="cat-icon-sm" style="background:${c.color}20">${c.icon}</div>${c.label}</div><div style="font-weight:900">${fmtEur(c.spent)}</div></div></div>`).join('')}
+  <button class="export-btn" style="margin-top:.6rem" onclick="exportIngRangoPDF()">📄 Exportar este rango en PDF</button>`;
+}
+
+function exportIngRangoPDF(){
+  if(!lastIngRango)return;
+  const {start,end,total,count,catData}=lastIngRango;
+  const w=window.open('','_blank');
+  w.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Ingresos por franja · PEÑA LOS BUFAS</title>'
+  +'<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#0f172a;padding:2rem;max-width:800px;margin:0 auto;font-size:14px}'
+  +'h1{font-size:1.8rem;font-weight:900;margin-bottom:.2rem}.sub{color:#64748b;margin-bottom:1.5rem;font-size:.85rem}'
+  +'.print-btn{padding:10px 20px;background:#16a34a;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:700;margin-bottom:1.5rem}'
+  +'.box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1rem;text-align:center;margin-bottom:1.5rem}'
+  +'.box .v{font-size:2rem;font-weight:900;color:#16a34a}.box .l{font-size:.75rem;color:#94a3b8;font-weight:700;text-transform:uppercase;margin-top:4px}'
+  +'.cr{display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid #f8fafc;font-size:.9rem}'
+  +'@media print{.print-btn{display:none}}</style></head><body>'
+  +'<button class="print-btn" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>'
+  +'<h1>💰 Ingresos · '+fmtDate(start)+' — '+fmtDate(end)+'</h1>'
+  +'<div class="sub">💰 PEÑA LOS BUFAS · Exportado el '+new Date().toLocaleDateString('es-ES')+'</div>'
+  +'<div class="box"><div class="v">'+fmtEur(total)+'</div><div class="l">'+count+' movimientos</div></div>'
+  +catData.map(c=>'<div class="cr"><span>'+c.icon+' '+c.label+'</span><b>'+fmtEur(c.spent)+'</b></div>').join('')
+  +'</body></html>');
+  w.document.close();
+}
+
+function monthsBetween(start,end){
+  const months=[];
+  let y=parseInt(start.substring(0,4)),m=parseInt(start.substring(5,7));
+  const endY=parseInt(end.substring(0,4)),endM=parseInt(end.substring(5,7));
+  while(y<endY||(y===endY&&m<=endM)){
+    months.push(`${y}-${pad(m)}`);
+    m++;if(m>12){m=1;y++;}
+  }
+  return months;
 }
 
 // ══ INGRESOS: EXPORTAR PDF ══
