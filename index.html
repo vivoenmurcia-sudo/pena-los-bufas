@@ -701,7 +701,7 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
       <textarea class="ftextarea" id="gh-nota" placeholder="Ej: Precio especial, cumpleaños, compartido con..."></textarea></div>
     <!-- ENLACE — solo Ocio (igual que Actividades en Viajes) -->
     <div class="fg" id="gh-enlace-section" style="display:none">
-      <label class="flabel" id="gh-enlace-lbl">🎟️ Enlace de entradas <span style="color:#cbd5e1;font-weight:400">(opcional)</span></label>
+      <label class="flabel" id="gh-enlace-lbl">🔗 Enlace <span style="color:#cbd5e1;font-weight:400">(opcional)</span></label>
       <input type="url" class="finput" id="gh-enlace" placeholder="https://..."></div>
     <!-- UBICACIÓN — solo Ocio (igual que Actividades en Viajes) -->
     <div class="fg" id="gh-ubicacion-section" style="display:none">
@@ -1042,7 +1042,7 @@ const CAT_HOGAR=[
   {id:'burguillos', icon:'🟠',label:'Burguillos',    color:'#f97316'},
   {id:'lolica',     icon:'🟣',label:'Lolica',        color:'#a855f7'},
   {id:'casa',       icon:'🔨',label:'Reformas Peña', color:'#3b82f6'},
-  {id:'ocio',       icon:'🎭🎡',label:'Ocio',         color:'#8b5cf6'},
+  {id:'ocio',       icon:'🍻',label:'Bebida',       color:'#8b5cf6'},
   {id:'otros',      icon:'📦',label:'Otros',        color:'#94a3b8'},
 ];
 const ALL_CATS=[...CAT_FIJOS,...CAT_HOGAR,...CAT_LEGACY];
@@ -2114,8 +2114,8 @@ function updateGHLugarLabel(catId){
   const lugarTxt=document.querySelector('#ghl-ph .photo-ph-text');
   if(!lugarLbl||!lugarIco||!lugarTxt)return;
   if(catId==='ocio'){
-    lugarIco.textContent='🎡';lugarTxt.textContent='Foto de la actividad o lugar';
-    lugarLbl.innerHTML='🎡 Foto de la actividad <span style="color:#cbd5e1;font-weight:400">(aparece en el header)</span>';
+    lugarIco.textContent='🍻';lugarTxt.textContent='Foto del bar o del sitio';
+    lugarLbl.innerHTML='🍻 Foto del bar <span style="color:#cbd5e1;font-weight:400">(aparece en el header)</span>';
   }else{
     lugarIco.textContent='🍽️';lugarTxt.textContent='Foto de la fachada o el local';
     lugarLbl.innerHTML='🍽️ Foto del restaurante <span style="color:#cbd5e1;font-weight:400">(aparece en el header)</span>';
