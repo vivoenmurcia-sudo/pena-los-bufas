@@ -81,6 +81,7 @@ body{background:#f4f2ec;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',
 .av-d{background:linear-gradient(135deg,#3b82f6,#1d4ed8)}.av-m{background:linear-gradient(135deg,#22c55e,#15803d)}.av-p{background:linear-gradient(135deg,#f59e0b,#d97706)}.av-ma{background:linear-gradient(135deg,#ec4899,#be185d)}
 .av-c0{background:linear-gradient(135deg,#3b82f6,#1d4ed8)}.av-c1{background:linear-gradient(135deg,#22c55e,#15803d)}.av-c2{background:linear-gradient(135deg,#f59e0b,#d97706)}.av-c3{background:linear-gradient(135deg,#ec4899,#be185d)}
 .av-c4{background:linear-gradient(135deg,#8b5cf6,#6d28d9)}.av-c5{background:linear-gradient(135deg,#06b6d4,#0e7490)}.av-c6{background:linear-gradient(135deg,#ef4444,#b91c1c)}.av-c7{background:linear-gradient(135deg,#84cc16,#4d7c0f)}
+.av-banco{background:linear-gradient(135deg,#eab308,#a16207)}
 .user-name{font-size:.75rem;font-weight:700;color:white}
 .signout-btn{padding:5px 11px;border:1px solid rgba(255,255,255,.2);border-radius:8px;background:transparent;cursor:pointer;font-size:.72rem;color:rgba(255,255,255,.7);font-weight:600;transition:all .2s}
 .signout-btn:hover{background:rgba(255,255,255,.1)}
@@ -1027,6 +1028,9 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
 <script>
 // ══ CONSTANTS ══
 const OWNER_EMAIL='vivoenmurcia@gmail.com'; // único con acceso a "Socios" (invitar/quitar)
+const BANCO_ID='banco_pena'; // pseudo-socio: representa el dinero común de la Peña (no es una persona)
+const BANCO_ENTRY={id:BANCO_ID,name:'🏦 Peña (banco)',email:'',avClass:'av-banco',letter:'🏦',owner:false,tesorero:false};
+function isTesorero(){return currentUser?.email===OWNER_EMAIL||!!currentUser?.tesorero;}
 let FAMILY=[]; // se rellena dinámicamente desde /socios en la base de datos
 function emailToKey(email){return(email||'').toLowerCase().replace(/[.#$\[\]@]/g,'_');}
 const AV_PALETTE=['av-c0','av-c1','av-c2','av-c3','av-c4','av-c5','av-c6','av-c7'];
@@ -1366,7 +1370,7 @@ document.addEventListener('db-ready',()=>{
         }else{
           const socio=await dbGet(`socios/${key}`);
           if(!socio){document.getElementById('login-error').textContent=`Sin acceso: ${email}. Pide al administrador que te invite.`;window._signOut();return;}
-          p={id:key,email,name:socio.name||email.split('@')[0],role:'admin',avClass:avClassFor(email),letter:(socio.name||email)[0].toUpperCase()};
+          p={id:key,email,name:socio.name||email.split('@')[0],role:'admin',avClass:avClassFor(email),letter:(socio.name||email)[0].toUpperCase(),tesorero:!!socio.tesorero};
         }
       }catch(e){
         console.error(e);
@@ -1438,13 +1442,16 @@ function startLsn(){
 function attachHLsn(){if(lsnH){lsnH();lsnH=null;}lsnH=dbLsn(`gastos_hogar/${get_currentMonth()}`,s=>{hogarData=s||{};renderHGastos();updateHero();if(hogarSub==='resumen')renderResumen();});}
 function attachVLsn(){if(lsnV){lsnV();lsnV=null;}lsnV=dbLsn(`ingresos/${get_currentMonth()}`,s=>{viajesData=s||{};renderIngList();updateHeroIng();if(ingSub==='resumen')renderResumenIng();});}
 function familyFromSocios(data){
-  return Object.entries(data||{}).map(([key,v])=>({id:key,name:v.name||v.email||'?',email:v.email||'',avClass:avClassFor(v.email||key),letter:(v.name||v.email||'?')[0].toUpperCase(),owner:!!v.owner})).sort((a,b)=>a.name.localeCompare(b.name));
+  const arr=Object.entries(data||{}).map(([key,v])=>({id:key,name:v.name||v.email||'?',email:v.email||'',avClass:avClassFor(v.email||key),letter:(v.name||v.email||'?')[0].toUpperCase(),owner:!!v.owner,tesorero:!!v.tesorero})).sort((a,b)=>a.name.localeCompare(b.name));
+  arr.push(BANCO_ENTRY);
+  return arr;
 }
 function attachSociosLsn(){
   if(lsnSocios){lsnSocios();lsnSocios=null;}
   lsnSocios=dbLsn('socios',s=>{
     sociosData=s||{};
     FAMILY=familyFromSocios(sociosData);
+    if(currentUser&&sociosData[currentUser.id])currentUser.tesorero=!!sociosData[currentUser.id].tesorero;
     if(mainTab==='socios')renderSociosList();
   });
 }
@@ -1552,7 +1559,7 @@ function renderHGastos(){
   const renderItem=(id,g,tipo='hogar')=>{
     const cat=getCatAll(g.categoria);
     const quien=FAMILY.find(f=>f.id===g.quien)?.name||'?';
-    const canEdit=currentUser?.email===OWNER_EMAIL||(g.quien===currentUser?.id);
+    const canEdit=currentUser?.email===OWNER_EMAIL||(g.quien===currentUser?.id)||(g.quien===BANCO_ID&&isTesorero());
     return`<div class="gasto-item" onclick="openDetalle('hogar','${id}')" style="border-left:4px solid ${cat.color}">
       <div class="gcat-icon" style="background:${cat.color}20">${cat.icon}</div>
       <div class="gasto-body">
@@ -1891,7 +1898,7 @@ function openDetalle(tipo, id, viajeId){
 
   const cat=tipo==='viaje'?getCat(CAT_VIAJE,g.categoria||'otros'):getCatAll(g.categoria||'otros');
   const quien=FAMILY.find(f=>f.id===(g.quien||g.quien_pago))?.name||'?';
-  const canEdit=currentUser?.email===OWNER_EMAIL||((g.quien||g.quien_pago)===currentUser?.id);
+  const canEdit=currentUser?.email===OWNER_EMAIL||((g.quien||g.quien_pago)===currentUser?.id)||(g.quien===BANCO_ID&&isTesorero());
 
   // Header — con foto de fondo si hay foto del lugar
   const hdr=document.getElementById('detalle-header');
@@ -2073,12 +2080,25 @@ function renderSociosList(){
     return`<div class="person-row">
       <div class="person-row-left">
         <div class="user-avatar ${av}" style="width:34px;height:34px;font-size:11px">${letter}</div>
-        <div><div style="font-size:.85rem;font-weight:800">${esc(v.name||'Sin nombre')}${(isOwner&&v.owner)?' <span style="font-size:.65rem;color:#94a3b8;font-weight:600">· superusuario</span>':''}</div>
+        <div><div style="font-size:.85rem;font-weight:800">${esc(v.name||'Sin nombre')}${(isOwner&&v.owner)?' <span style="font-size:.65rem;color:#94a3b8;font-weight:600">· superusuario</span>':''}${(isOwner&&v.tesorero)?' <span style="font-size:.65rem;color:#a16207;font-weight:600">· 🔑 tesorero</span>':''}</div>
         ${isOwner?`<div style="font-size:.72rem;color:#94a3b8">${esc(v.email||'')}</div>`:''}</div>
       </div>
-      ${(isOwner&&!v.owner)?`<button class="iBtn dl" onclick="delSocio('${key}','${esc(v.name||v.email||'')}')">🗑️</button>`:''}
+      ${(isOwner&&!v.owner)?`<div style="display:flex;align-items:center;gap:8px">
+        <label style="display:flex;align-items:center;gap:4px;font-size:.68rem;color:#64748b;cursor:pointer;white-space:nowrap">
+          <input type="checkbox" ${v.tesorero?'checked':''} onchange="toggleTesorero('${key}',${!!v.tesorero})" style="cursor:pointer">🔑 Tesorero
+        </label>
+        <button class="iBtn dl" onclick="delSocio('${key}','${esc(v.name||v.email||'')}')">🗑️</button>
+      </div>`:''}
     </div><div class="divider"></div>`;
   }).join('');
+}
+
+async function toggleTesorero(key,current){
+  if(currentUser?.email!==OWNER_EMAIL){toast('❌ Solo el administrador puede hacer esto');return;}
+  try{
+    await dbUpd(`socios/${key}`,{tesorero:!current});
+    toast(!current?'🔑 Ahora es tesorero':'Ya no es tesorero');
+  }catch(e){console.error(e);toast('❌ Error al guardar');}
 }
 
 async function addSocio(){
@@ -2144,7 +2164,7 @@ async function openGHModal(editId){
   }
   buildCatPicker('gh-cat-fijos',CAT_FIJOS,'h');
   buildCatPicker('gh-cat',CAT_HOGAR,'h');
-  document.getElementById('gh-quien').innerHTML=FAMILY.map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
+  document.getElementById('gh-quien').innerHTML=(isTesorero()?FAMILY:FAMILY.filter(f=>f.id!==BANCO_ID)).map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
   rmPhoto('gh');rmPhoto('ghl');document.getElementById('budget-warn-box').style.display='none';
   let legacyTipoSeguro=null;
   if(editId&&hogarData[editId]){
@@ -2229,6 +2249,7 @@ async function saveGastoHogar(){
   const importe=parseFloat(document.getElementById('gh-imp').value);
   if(!importe||importe<=0){toast('⚠️ Introduce un importe válido');return;}
   if(!document.getElementById('gh-quien').value){toast('⚠️ No se ha podido cargar la lista de socios, cierra y vuelve a abrir el formulario');return;}
+  if(document.getElementById('gh-quien').value===BANCO_ID&&!isTesorero()){toast('❌ Solo los tesoreros pueden usar "Peña (banco)"');return;}
   setUploading('gh',true);
   try{
     const fecha=document.getElementById('gh-fecha').value||todayISO();
@@ -3006,7 +3027,7 @@ function renderIngList(){
   el.innerHTML='<div class="gasto-list">'+entries.map(([id,g])=>{
     const cat=getCat(CAT_VIAJE,g.categoria);
     const quien=FAMILY.find(f=>f.id===g.quien)?.name||'?';
-    const canEdit=currentUser?.email===OWNER_EMAIL||(g.quien===currentUser?.id);
+    const canEdit=currentUser?.email===OWNER_EMAIL||(g.quien===currentUser?.id)||(g.quien===BANCO_ID&&isTesorero());
     return`<div class="gasto-item" onclick="openDetalle('viaje','${id}')" style="border-left:4px solid ${cat.color}">
       <div class="gcat-icon" style="background:${cat.color}20">${cat.icon}</div>
       <div class="gasto-body">
@@ -3448,7 +3469,7 @@ async function openGVModal(editId){
     catch(e){console.error(e);}
   }
   buildCatPicker('gv-cat',CAT_VIAJE,'v');rmPhoto('gv');
-  document.getElementById('gv-quien').innerHTML=FAMILY.map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
+  document.getElementById('gv-quien').innerHTML=(isTesorero()?FAMILY:FAMILY.filter(f=>f.id!==BANCO_ID)).map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
   if(editId&&viajesData[editId]){
     const g=viajesData[editId];
     document.getElementById('gv-imp').value=g.importe;
@@ -3473,6 +3494,7 @@ async function saveGastoViaje(){
   const importe=parseFloat(document.getElementById('gv-imp').value);
   if(!importe||importe<=0){toast('⚠️ Introduce un importe válido');return;}
   if(!document.getElementById('gv-quien').value){toast('⚠️ No se ha podido cargar la lista de socios, cierra y vuelve a abrir el formulario');return;}
+  if(document.getElementById('gv-quien').value===BANCO_ID&&!isTesorero()){toast('❌ Solo los tesoreros pueden usar "Peña (banco)"');return;}
   setUploading('gv',true);
   try{
     let foto_url=existUrl.gv||null,foto_path=existPath.gv||null;
