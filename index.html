@@ -721,6 +721,11 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
       </div>
       <input type="text" class="finput" id="gh-bebida-otro" placeholder="Especifica cuál..." style="display:none">
     </div>
+    <!-- AJUSTES — solo categoría Ajustes: a quién se le paga/devuelve -->
+    <div class="fg" id="gh-ajuste-section" style="display:none">
+      <label class="flabel">⚖️ ¿A quién se le paga/devuelve?</label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px" id="gh-ajuste-picker"></div>
+    </div>
     <!-- GASOLINA: vehículo arriba, aplica a todos los campos -->
     <div id="gh-gasolina-section" style="display:none">
       <!-- Selector vehículo — arriba de todo -->
@@ -828,6 +833,11 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
     <div class="fg"><label class="flabel">Importe (€)</label>
       <input type="number" class="finput-big" id="gv-imp" placeholder="0,00" step="0.01" min="0"></div>
     <div class="fg"><label class="flabel">Categoría</label><div class="cat-picker" id="gv-cat"></div></div>
+    <!-- AJUSTES — solo categoría Otros: de quién es esta devolución -->
+    <div class="fg" id="gv-ajuste-section" style="display:none">
+      <label class="flabel">⚖️ ¿De quién es esta devolución?</label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px" id="gv-ajuste-picker"></div>
+    </div>
     <div class="fg"><label class="flabel">Concepto</label>
       <input type="text" class="finput vf" id="gv-desc" placeholder="Ej: Cuota mensual, venta de camisetas..."></div>
     <div class="fg"><label class="flabel">Nota <span style="color:#cbd5e1;font-weight:400">(opcional)</span></label>
@@ -1031,6 +1041,15 @@ const OWNER_EMAIL='vivoenmurcia@gmail.com'; // único con acceso a "Socios" (inv
 const BANCO_ID='banco_pena'; // pseudo-socio: representa el dinero común de la Peña (no es una persona)
 const BANCO_ENTRY={id:BANCO_ID,name:'🏦 Peña (banco)',email:'',avClass:'av-banco',letter:'🏦',owner:false,tesorero:false};
 function isTesorero(){return currentUser?.email===OWNER_EMAIL||!!currentUser?.tesorero;}
+function quienLabel(g){
+  const qid=g.quien||g.quien_pago;
+  const base=FAMILY.find(f=>f.id===qid)?.name||'?';
+  if(qid===BANCO_ID&&g.registrado_por){
+    const reg=FAMILY.find(f=>f.id===g.registrado_por)?.name||'?';
+    return`${base} — ${esc(reg)}`;
+  }
+  return base;
+}
 let FAMILY=[]; // se rellena dinámicamente desde /socios en la base de datos
 function emailToKey(email){return(email||'').toLowerCase().replace(/[.#$\[\]@]/g,'_');}
 const AV_PALETTE=['av-c0','av-c1','av-c2','av-c3','av-c4','av-c5','av-c6','av-c7'];
@@ -1060,6 +1079,7 @@ const CAT_HOGAR=[
   {id:'lolica',     icon:'🟣',label:'Lolica',        color:'#a855f7'},
   {id:'casa',       icon:'🔨',label:'Reformas Peña', color:'#3b82f6'},
   {id:'ocio',       icon:'🍻',label:'Bebida',       color:'#8b5cf6'},
+  {id:'ajustes',    icon:'⚖️',label:'Ajustes',      color:'#0891b2'},
   {id:'otros',      icon:'📦',label:'Otros',        color:'#94a3b8'},
 ];
 const ALL_CATS=[...CAT_FIJOS,...CAT_HOGAR,...CAT_LEGACY];
@@ -1558,16 +1578,17 @@ function renderHGastos(){
 
   const renderItem=(id,g,tipo='hogar')=>{
     const cat=getCatAll(g.categoria);
-    const quien=FAMILY.find(f=>f.id===g.quien)?.name||'?';
+    const quien=quienLabel(g);
     const canEdit=currentUser?.email===OWNER_EMAIL||(g.quien===currentUser?.id)||(g.quien===BANCO_ID&&isTesorero());
     return`<div class="gasto-item" onclick="openDetalle('hogar','${id}')" style="border-left:4px solid ${cat.color}">
       <div class="gcat-icon" style="background:${cat.color}20">${cat.icon}</div>
       <div class="gasto-body">
         <div class="gasto-desc">
-          ${g.cadena&&!g.descripcion?`<span style="font-weight:900">${g.cadena}</span>`:g.tipo_seguro&&!g.descripcion?`<span style="font-weight:900">🛡️ ${esc(g.tipo_seguro)}</span>`:g.tipo_bebida&&!g.descripcion?`<span style="font-weight:900">🍻 ${esc(g.tipo_bebida)}</span>`:esc(g.descripcion||cat.label)}
+          ${g.cadena&&!g.descripcion?`<span style="font-weight:900">${g.cadena}</span>`:g.tipo_seguro&&!g.descripcion?`<span style="font-weight:900">🛡️ ${esc(g.tipo_seguro)}</span>`:g.tipo_bebida&&!g.descripcion?`<span style="font-weight:900">🍻 ${esc(g.tipo_bebida)}</span>`:g.socio_relacionado&&!g.descripcion?`<span style="font-weight:900">⚖️ ${esc(FAMILY.find(f=>f.id===g.socio_relacionado)?.name||'?')}</span>`:esc(g.descripcion||cat.label)}
           ${g.cadena&&g.descripcion?`<span style="font-size:.65rem;font-weight:800;padding:1px 7px;border-radius:10px;background:#dcfce7;color:#15803d;margin-left:4px">${g.cadena}</span>`:''}
           ${g.tipo_seguro&&g.descripcion?`<span style="font-size:.65rem;font-weight:800;padding:1px 7px;border-radius:10px;background:#fef2f2;color:#b91c1c;margin-left:4px">🛡️ ${esc(g.tipo_seguro)}</span>`:''}
           ${g.tipo_bebida&&g.descripcion?`<span style="font-size:.65rem;font-weight:800;padding:1px 7px;border-radius:10px;background:#f3e8ff;color:#7e22ce;margin-left:4px">🍻 ${esc(g.tipo_bebida)}</span>`:''}
+          ${g.socio_relacionado&&g.descripcion?`<span style="font-size:.65rem;font-weight:800;padding:1px 7px;border-radius:10px;background:#cffafe;color:#0e7490;margin-left:4px">⚖️ ${esc(FAMILY.find(f=>f.id===g.socio_relacionado)?.name||'?')}</span>`:''}
         </div>
         ${g.cadena&&!g.descripcion?`<div style="font-size:.7rem;color:#94a3b8;margin-top:1px">🛒 Supermercado</div>`:''}
         ${g.nota?`<div class="gasto-nota">💬 ${esc(g.nota)}</div>`:''}
@@ -1897,7 +1918,7 @@ function openDetalle(tipo, id, viajeId){
   if(!g)return;
 
   const cat=tipo==='viaje'?getCat(CAT_VIAJE,g.categoria||'otros'):getCatAll(g.categoria||'otros');
-  const quien=FAMILY.find(f=>f.id===(g.quien||g.quien_pago))?.name||'?';
+  const quien=quienLabel(g);
   const canEdit=currentUser?.email===OWNER_EMAIL||((g.quien||g.quien_pago)===currentUser?.id)||(g.quien===BANCO_ID&&isTesorero());
 
   // Header — con foto de fondo si hay foto del lugar
@@ -1924,7 +1945,7 @@ function openDetalle(tipo, id, viajeId){
       <button onclick="closeModal('modal-detalle')" style="position:absolute;top:12px;right:12px;background:rgba(255,255,255,.2);border:none;color:white;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center">✕</button>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:.5rem">
         <div style="font-size:2.2rem">${cat.icon}</div>
-        ${g.cadena?`<div style="font-size:1.3rem;font-weight:900;opacity:.95">${g.cadena}</div>`:g.vehiculo?`<div style="font-size:1.1rem;font-weight:900;opacity:.95">${g.vehiculo==='tiguan'?'VW Tiguan':'VW Golf'}</div>`:g.tipo_seguro?`<div style="font-size:1.2rem;font-weight:900;opacity:.95">🛡️ ${esc(g.tipo_seguro)}</div>`:g.tipo_bebida?`<div style="font-size:1.2rem;font-weight:900;opacity:.95">🍻 ${esc(g.tipo_bebida)}</div>`:''}
+        ${g.cadena?`<div style="font-size:1.3rem;font-weight:900;opacity:.95">${g.cadena}</div>`:g.vehiculo?`<div style="font-size:1.1rem;font-weight:900;opacity:.95">${g.vehiculo==='tiguan'?'VW Tiguan':'VW Golf'}</div>`:g.tipo_seguro?`<div style="font-size:1.2rem;font-weight:900;opacity:.95">🛡️ ${esc(g.tipo_seguro)}</div>`:g.tipo_bebida?`<div style="font-size:1.2rem;font-weight:900;opacity:.95">🍻 ${esc(g.tipo_bebida)}</div>`:g.socio_relacionado?`<div style="font-size:1.2rem;font-weight:900;opacity:.95">⚖️ ${esc(FAMILY.find(f=>f.id===g.socio_relacionado)?.name||'?')}</div>`:''}
       </div>
       <div style="font-size:2rem;font-weight:900;letter-spacing:-.02em">${fmtEur(g.importe)}</div>
       <div style="font-size:.75rem;font-weight:700;opacity:.65;margin-top:3px;text-transform:uppercase;letter-spacing:.08em">${cat.label}</div>`;
@@ -2188,6 +2209,9 @@ async function openGHModal(editId){
     if(ubicElEdit)ubicElEdit.value=g.ubicacion||'';
     resetBebidaSel('gh');
     if(g.tipo_bebida)loadBebidaSel('gh',g.tipo_bebida);
+    buildAjustePicker('gh-ajuste-picker','gh');
+    resetAjusteSel('gh');
+    if(g.socio_relacionado)loadAjusteSel('gh',g.socio_relacionado);
   }else{
     document.getElementById('gh-imp').value='';
     document.getElementById('gh-desc').value='';
@@ -2201,6 +2225,8 @@ async function openGHModal(editId){
     const ubicElNew=document.getElementById('gh-ubicacion');
     if(ubicElNew)ubicElNew.value='';
     resetBebidaSel('gh');
+    buildAjustePicker('gh-ajuste-picker','gh');
+    resetAjusteSel('gh');
   }
   // Si la categoría seleccionada es un fijo, abrir el acordeón (ya con selCatH definitivo)
   const esFijo=FIJO_IDS.includes(selCatH);
@@ -2217,6 +2243,8 @@ async function openGHModal(editId){
   if(ubicSecH)ubicSecH.style.display=selCatH==='ocio'?'':'none';
   const bebidaSecH=document.getElementById('gh-bebida-section');
   if(bebidaSecH)bebidaSecH.style.display=selCatH==='ocio'?'':'none';
+  const ajusteSecH=document.getElementById('gh-ajuste-section');
+  if(ajusteSecH)ajusteSecH.style.display=selCatH==='ajustes'?'':'none';
   const gasSecH=document.getElementById('gh-gasolina-section');
   if(gasSecH)gasSecH.style.display=selCatH==='gasolina'?'':'none';
   resetGasFields('gh');
@@ -2250,6 +2278,7 @@ async function saveGastoHogar(){
   if(!importe||importe<=0){toast('⚠️ Introduce un importe válido');return;}
   if(!document.getElementById('gh-quien').value){toast('⚠️ No se ha podido cargar la lista de socios, cierra y vuelve a abrir el formulario');return;}
   if(document.getElementById('gh-quien').value===BANCO_ID&&!isTesorero()){toast('❌ Solo los tesoreros pueden usar "Peña (banco)"');return;}
+  if(selCatH==='ajustes'&&!getAjusteData('gh')){toast('⚠️ Elige a quién se le paga/devuelve');return;}
   setUploading('gh',true);
   try{
     const fecha=document.getElementById('gh-fecha').value||todayISO();
@@ -2271,7 +2300,8 @@ async function saveGastoHogar(){
     const ubicacion=document.getElementById('gh-ubicacion')?.value.trim()||null;
     const kmValRaw=(selCatH==='coche'||selCatH==='gasolina')?parseFloat(document.getElementById('gh-km-actual')?.value||''):NaN;
     const kmVal=(!isNaN(kmValRaw)&&kmValRaw>0)?kmValRaw:null;
-    const data={importe,categoria:selCatH,descripcion:document.getElementById('gh-desc').value.trim(),nota:document.getElementById('gh-nota').value.trim()||null,enlace:enlace||null,ubicacion:ubicacion||null,fecha,quien:document.getElementById('gh-quien').value,recurrente:document.getElementById('gh-rec').checked||null,foto_url:foto_url||null,foto_path:foto_path||null,foto_lugar_url:foto_lugar_url||null,foto_lugar_path:foto_lugar_path||null,...(selCatH==='gasolina'?getGasData('gh'):{}),...(selCatH==='seguros'?{tipo_seguro:getTipoSeguroData('gh')}:{}),...(selCatH==='ocio'?{tipo_bebida:getBebidaData('gh')}:{}),...(kmVal?{km_actual:kmVal,km_vehiculo:selKmVeh}:{}),timestamp:Date.now()};
+    const quienVal=document.getElementById('gh-quien').value;
+    const data={importe,categoria:selCatH,descripcion:document.getElementById('gh-desc').value.trim(),nota:document.getElementById('gh-nota').value.trim()||null,enlace:enlace||null,ubicacion:ubicacion||null,fecha,quien:quienVal,recurrente:document.getElementById('gh-rec').checked||null,foto_url:foto_url||null,foto_path:foto_path||null,foto_lugar_url:foto_lugar_url||null,foto_lugar_path:foto_lugar_path||null,...(selCatH==='gasolina'?getGasData('gh'):{}),...(selCatH==='seguros'?{tipo_seguro:getTipoSeguroData('gh')}:{}),...(selCatH==='ocio'?{tipo_bebida:getBebidaData('gh')}:{}),...(selCatH==='ajustes'?{socio_relacionado:getAjusteData('gh')}:{}),...(kmVal?{km_actual:kmVal,km_vehiculo:selKmVeh}:{}),...(quienVal===BANCO_ID?{registrado_por:currentUser.id}:{registrado_por:null}),timestamp:Date.now()};
     let finalGastoId=editGHId;
     if(editGHId){
       // Si la fecha cambia de mes, mover a nuevo mes
@@ -2325,6 +2355,9 @@ function detalleGasto(g,cat){
   if(cat.id==='ocio'&&g.tipo_bebida){
     return '🍻 '+esc(g.tipo_bebida)+(g.descripcion?' — '+esc(g.descripcion):'');
   }
+  if(cat.id==='ajustes'&&g.socio_relacionado){
+    return '⚖️ '+esc(FAMILY.find(f=>f.id===g.socio_relacionado)?.name||'?')+(g.descripcion?' — '+esc(g.descripcion):'');
+  }
   return esc(g.descripcion||'—');
 }
 function exportMes(){
@@ -2339,7 +2372,7 @@ function exportMes(){
   const totalBudget=Object.values(pres).reduce((s,v)=>s+parseFloat(v||0),0);
   const porPersona=FAMILY.map(f=>({...f,total:entries.filter(g=>g.quien===f.id).reduce((s,g)=>s+parseFloat(g.importe||0),0),count:entries.filter(g=>g.quien===f.id).length})).filter(f=>f.total>0).sort((a,b)=>b.total-a.total);
   const porCat=ALL_CATS.map(c=>({...c,spent:entries.filter(g=>g.categoria===c.id).reduce((s,g)=>s+parseFloat(g.importe||0),0)})).filter(c=>c.spent>0).sort((a,b)=>b.spent-a.spent);
-  const rowsHtml=(list)=>list.map(g=>{const cat=getCatAll(g.categoria);const quien=FAMILY.find(f=>f.id===g.quien)?.name||'?';
+  const rowsHtml=(list)=>list.map(g=>{const cat=getCatAll(g.categoria);const quien=quienLabel(g);
     return '<tr><td>'+fmtDate(g.fecha)+'</td><td>'+cat.icon+' '+cat.label+'</td><td>'+detalleGasto(g,cat)+(g.nota?'<br><small>'+esc(g.nota)+'</small>':'')+'</td><td>'+quien+'</td><td class="num">'+fmtEur(g.importe)+'</td></tr>';
   }).join('');
   const pct=totalBudget>0?Math.round((total/totalBudget)*100):0;
@@ -2855,6 +2888,29 @@ function loadBebidaSel(prefix,tipo){
   }
 }
 
+// ══ AJUSTES (reembolsos/devoluciones entre socios) ══
+let selAjuste={};
+function buildAjustePicker(cid,prefix){
+  const el=document.getElementById(cid);if(!el)return;
+  const opts=FAMILY.filter(f=>f.id!==BANCO_ID);
+  el.innerHTML=opts.map(f=>`<button type="button" class="gas-veh" data-id="${f.id}" style="flex:none;padding:8px 14px" onclick="selectAjuste('${prefix}','${f.id}',this)">${esc(f.name)}</button>`).join('');
+}
+function selectAjuste(prefix,socioId,btn){
+  selAjuste[prefix]=socioId;
+  document.querySelectorAll(`#${prefix}-ajuste-picker .gas-veh`).forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function getAjusteData(prefix){return selAjuste[prefix]||null;}
+function resetAjusteSel(prefix){
+  selAjuste[prefix]=null;
+  document.querySelectorAll(`#${prefix}-ajuste-picker .gas-veh`).forEach(b=>b.classList.remove('active'));
+}
+function loadAjusteSel(prefix,socioId){
+  if(!socioId)return;
+  selAjuste[prefix]=socioId;
+  document.querySelectorAll(`#${prefix}-ajuste-picker .gas-veh`).forEach(b=>b.classList.toggle('active',b.dataset.id===socioId));
+}
+
 let catFiltro='mes';
 let currentCatId=null;
 
@@ -2961,7 +3017,7 @@ function renderCatDetalleLista(){
   }
 
   document.getElementById('catd-lista').innerHTML=cadenaHtml+(filtered.length
-    ?'<div class="gasto-list">'+filtered.map(g=>{const quien=FAMILY.find(f=>f.id===g.quien)?.name||'?';
+    ?'<div class="gasto-list">'+filtered.map(g=>{const quien=quienLabel(g);
       return`<div class="gasto-item" onclick="closeModal('modal-cat-detalle');setTimeout(()=>openDetalle('hogar','${g._key}'),200)" style="border-left:4px solid ${cat.color}">
         <div class="gcat-icon" style="background:${cat.color}20">${cat.icon}</div>
         <div class="gasto-body">
@@ -3026,12 +3082,14 @@ function renderIngList(){
   }
   el.innerHTML='<div class="gasto-list">'+entries.map(([id,g])=>{
     const cat=getCat(CAT_VIAJE,g.categoria);
-    const quien=FAMILY.find(f=>f.id===g.quien)?.name||'?';
+    const quien=quienLabel(g);
     const canEdit=currentUser?.email===OWNER_EMAIL||(g.quien===currentUser?.id)||(g.quien===BANCO_ID&&isTesorero());
     return`<div class="gasto-item" onclick="openDetalle('viaje','${id}')" style="border-left:4px solid ${cat.color}">
       <div class="gcat-icon" style="background:${cat.color}20">${cat.icon}</div>
       <div class="gasto-body">
-        <div class="gasto-desc">${esc(g.descripcion||cat.label)}</div>
+        <div class="gasto-desc">${g.socio_relacionado&&!g.descripcion?`<span style="font-weight:900">⚖️ ${esc(FAMILY.find(f=>f.id===g.socio_relacionado)?.name||'?')}</span>`:esc(g.descripcion||cat.label)}
+          ${g.socio_relacionado&&g.descripcion?`<span style="font-size:.65rem;font-weight:800;padding:1px 7px;border-radius:10px;background:#cffafe;color:#0e7490;margin-left:4px">⚖️ ${esc(FAMILY.find(f=>f.id===g.socio_relacionado)?.name||'?')}</span>`:''}
+        </div>
         ${g.nota?`<div class="gasto-nota">💬 ${esc(g.nota)}</div>`:''}
         <div class="gasto-meta">${cat.label}<span style="color:#e2e8f0">·</span>${quien}<span style="color:#e2e8f0">·</span>${fmtDate(g.fecha)}
           ${g.foto_url?`<span class="photo-badge" onclick="openLb('${g.foto_url}');event.stopPropagation()" style="cursor:pointer" title="Ver comprobante">📸</span>`:''}
@@ -3425,8 +3483,9 @@ function exportIngresosMes(){
   const total=entries.reduce((s,g)=>s+parseFloat(g.importe||0),0);
   const porPersona=FAMILY.map(f=>({...f,total:entries.filter(g=>g.quien===f.id).reduce((s,g)=>s+parseFloat(g.importe||0),0),count:entries.filter(g=>g.quien===f.id).length})).filter(f=>f.total>0).sort((a,b)=>b.total-a.total);
   const porCat=CAT_VIAJE.map(c=>({...c,spent:entries.filter(g=>g.categoria===c.id).reduce((s,g)=>s+parseFloat(g.importe||0),0)})).filter(c=>c.spent>0).sort((a,b)=>b.spent-a.spent);
-  const rowsHtml=entries.map(g=>{const cat=getCat(CAT_VIAJE,g.categoria);const quien=FAMILY.find(f=>f.id===g.quien)?.name||'?';
-    return '<tr><td>'+fmtDate(g.fecha)+'</td><td>'+cat.icon+' '+cat.label+'</td><td>'+esc(g.descripcion||cat.label)+(g.nota?'<br><small>'+esc(g.nota)+'</small>':'')+'</td><td>'+quien+'</td><td class="num">'+fmtEur(g.importe)+'</td></tr>';
+  const rowsHtml=entries.map(g=>{const cat=getCat(CAT_VIAJE,g.categoria);const quien=quienLabel(g);
+    const concepto=(g.categoria==='otros'&&g.socio_relacionado)?'⚖️ '+esc(FAMILY.find(f=>f.id===g.socio_relacionado)?.name||'?')+(g.descripcion?' — '+esc(g.descripcion):''):esc(g.descripcion||cat.label);
+    return '<tr><td>'+fmtDate(g.fecha)+'</td><td>'+cat.icon+' '+cat.label+'</td><td>'+concepto+(g.nota?'<br><small>'+esc(g.nota)+'</small>':'')+'</td><td>'+quien+'</td><td class="num">'+fmtEur(g.importe)+'</td></tr>';
   }).join('');
   const w=window.open('','_blank');
   w.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Ingresos '+fmtMon(get_currentMonth())+'</title>'
@@ -3470,6 +3529,7 @@ async function openGVModal(editId){
   }
   buildCatPicker('gv-cat',CAT_VIAJE,'v');rmPhoto('gv');
   document.getElementById('gv-quien').innerHTML=(isTesorero()?FAMILY:FAMILY.filter(f=>f.id!==BANCO_ID)).map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
+  buildAjustePicker('gv-ajuste-picker','gv');
   if(editId&&viajesData[editId]){
     const g=viajesData[editId];
     document.getElementById('gv-imp').value=g.importe;
@@ -3479,6 +3539,8 @@ async function openGVModal(editId){
     document.getElementById('gv-quien').value=g.quien||currentUser?.id;
     selCatV=g.categoria||'cuota_socio';
     if(g.foto_url)loadExistingPhoto('gv',g.foto_url,g.foto_path||null);
+    resetAjusteSel('gv');
+    if(g.socio_relacionado)loadAjusteSel('gv',g.socio_relacionado);
   }else{
     document.getElementById('gv-imp').value='';
     document.getElementById('gv-desc').value='';
@@ -3486,7 +3548,10 @@ async function openGVModal(editId){
     document.getElementById('gv-fecha').value=todayISO();
     document.getElementById('gv-quien').value=currentUser?.id||'';
     selCatV='cuota_socio';
+    resetAjusteSel('gv');
   }
+  const ajusteSecV=document.getElementById('gv-ajuste-section');
+  if(ajusteSecV)ajusteSecV.style.display=selCatV==='otros'?'':'none';
   highlightCat('gv-cat',selCatV,'v');openModal('modal-gv');
 }
 
@@ -3495,6 +3560,7 @@ async function saveGastoViaje(){
   if(!importe||importe<=0){toast('⚠️ Introduce un importe válido');return;}
   if(!document.getElementById('gv-quien').value){toast('⚠️ No se ha podido cargar la lista de socios, cierra y vuelve a abrir el formulario');return;}
   if(document.getElementById('gv-quien').value===BANCO_ID&&!isTesorero()){toast('❌ Solo los tesoreros pueden usar "Peña (banco)"');return;}
+  if(selCatV==='otros'&&!getAjusteData('gv')){toast('⚠️ Elige de quién es esta devolución');return;}
   setUploading('gv',true);
   try{
     let foto_url=existUrl.gv||null,foto_path=existPath.gv||null;
@@ -3504,7 +3570,8 @@ async function saveGastoViaje(){
       if(foto_path&&foto_path!==res.path)await delPhoto(foto_path);
       foto_url=res.url;foto_path=res.path;
     }
-    const data={importe,categoria:selCatV,descripcion:document.getElementById('gv-desc').value.trim(),nota:document.getElementById('gv-nota').value.trim()||null,fecha:document.getElementById('gv-fecha').value||todayISO(),quien:document.getElementById('gv-quien').value,foto_url:foto_url||null,foto_path:foto_path||null,timestamp:Date.now()};
+    const quienVal=document.getElementById('gv-quien').value;
+    const data={importe,categoria:selCatV,descripcion:document.getElementById('gv-desc').value.trim(),nota:document.getElementById('gv-nota').value.trim()||null,fecha:document.getElementById('gv-fecha').value||todayISO(),quien:quienVal,foto_url:foto_url||null,foto_path:foto_path||null,...(selCatV==='otros'?{socio_relacionado:getAjusteData('gv')}:{}),registrado_por:quienVal===BANCO_ID?currentUser.id:null,timestamp:Date.now()};
     if(editGVId){await dbUpd(`ingresos/${mes}/${editGVId}`,data);toast('✅ Ingreso actualizado');}
     else{await dbPush(`ingresos/${mes}`,data);toast('✅ Ingreso añadido');}
     closeModal('modal-gv');
@@ -3542,6 +3609,12 @@ function selectCat(cid,catId,type){
     const bebidaSecH=document.getElementById('gh-bebida-section');
     if(bebidaSecH)bebidaSecH.style.display=catId==='ocio'?'':'none';
     if(catId!=='ocio')resetBebidaSel('gh');
+    const ajusteSecH=document.getElementById('gh-ajuste-section');
+    if(ajusteSecH){
+      ajusteSecH.style.display=catId==='ajustes'?'':'none';
+      if(catId==='ajustes')buildAjustePicker('gh-ajuste-picker','gh');
+    }
+    if(catId!=='ajustes')resetAjusteSel('gh');
     const gasSecH=document.getElementById('gh-gasolina-section');
     if(gasSecH)gasSecH.style.display=catId==='gasolina'?'':'none';
     if(catId!=='gasolina')resetGasFields('gh');
@@ -3558,6 +3631,14 @@ function selectCat(cid,catId,type){
     if(catId!=='coche'&&catId!=='gasolina'){const el=document.getElementById('gh-km-actual');if(el)el.value='';const d=document.getElementById('gh-km-diff');if(d)d.style.display='none';}
   } else {
     highlightCat(cid,catId,type);
+    if(type==='v'){
+      const ajusteSecV=document.getElementById('gv-ajuste-section');
+      if(ajusteSecV){
+        ajusteSecV.style.display=catId==='otros'?'':'none';
+        if(catId==='otros')buildAjustePicker('gv-ajuste-picker','gv');
+      }
+      if(catId!=='otros')resetAjusteSel('gv');
+    }
   }
   if(type!=='v')checkBudgetWarn();
 }
