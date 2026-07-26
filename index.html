@@ -703,10 +703,23 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
     <div class="fg" id="gh-enlace-section" style="display:none">
       <label class="flabel" id="gh-enlace-lbl">🔗 Enlace <span style="color:#cbd5e1;font-weight:400">(opcional)</span></label>
       <input type="url" class="finput" id="gh-enlace" placeholder="https://..."></div>
-    <!-- UBICACIÓN — solo Ocio (igual que Actividades en Viajes) -->
+    <!-- UBICACIÓN — solo Bebida -->
     <div class="fg" id="gh-ubicacion-section" style="display:none">
       <label class="flabel">📍 Ubicación <span style="color:#cbd5e1;font-weight:400">(opcional)</span></label>
       <input type="text" class="finput" id="gh-ubicacion" placeholder="Ej: nombre del lugar o dirección completa..."></div>
+    <!-- TIPO DE BEBIDA — solo Bebida -->
+    <div class="fg" id="gh-bebida-section" style="display:none">
+      <label class="flabel">🍻 Tipo de bebida</label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px" id="gh-bebida-tipo">
+        <div class="gas-veh active" style="flex:none;padding:8px 14px" onclick="selectBebida('gh','Barril cerveza',this)">🍺 Barril cerveza</div>
+        <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectBebida('gh','Vino',this)">🍷 Vino</div>
+        <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectBebida('gh','Whisky',this)">🥃 Whisky</div>
+        <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectBebida('gh','Ron',this)">🍹 Ron</div>
+        <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectBebida('gh','Vodka',this)">🍸 Vodka</div>
+        <div class="gas-veh" style="flex:none;padding:8px 14px" onclick="selectBebida('gh','otro',this)">✏️ Otra</div>
+      </div>
+      <input type="text" class="finput" id="gh-bebida-otro" placeholder="Especifica cuál..." style="display:none">
+    </div>
     <!-- GASOLINA: vehículo arriba, aplica a todos los campos -->
     <div id="gh-gasolina-section" style="display:none">
       <!-- Selector vehículo — arriba de todo -->
@@ -1544,9 +1557,10 @@ function renderHGastos(){
       <div class="gcat-icon" style="background:${cat.color}20">${cat.icon}</div>
       <div class="gasto-body">
         <div class="gasto-desc">
-          ${g.cadena&&!g.descripcion?`<span style="font-weight:900">${g.cadena}</span>`:g.tipo_seguro&&!g.descripcion?`<span style="font-weight:900">🛡️ ${esc(g.tipo_seguro)}</span>`:esc(g.descripcion||cat.label)}
+          ${g.cadena&&!g.descripcion?`<span style="font-weight:900">${g.cadena}</span>`:g.tipo_seguro&&!g.descripcion?`<span style="font-weight:900">🛡️ ${esc(g.tipo_seguro)}</span>`:g.tipo_bebida&&!g.descripcion?`<span style="font-weight:900">🍻 ${esc(g.tipo_bebida)}</span>`:esc(g.descripcion||cat.label)}
           ${g.cadena&&g.descripcion?`<span style="font-size:.65rem;font-weight:800;padding:1px 7px;border-radius:10px;background:#dcfce7;color:#15803d;margin-left:4px">${g.cadena}</span>`:''}
           ${g.tipo_seguro&&g.descripcion?`<span style="font-size:.65rem;font-weight:800;padding:1px 7px;border-radius:10px;background:#fef2f2;color:#b91c1c;margin-left:4px">🛡️ ${esc(g.tipo_seguro)}</span>`:''}
+          ${g.tipo_bebida&&g.descripcion?`<span style="font-size:.65rem;font-weight:800;padding:1px 7px;border-radius:10px;background:#f3e8ff;color:#7e22ce;margin-left:4px">🍻 ${esc(g.tipo_bebida)}</span>`:''}
         </div>
         ${g.cadena&&!g.descripcion?`<div style="font-size:.7rem;color:#94a3b8;margin-top:1px">🛒 Supermercado</div>`:''}
         ${g.nota?`<div class="gasto-nota">💬 ${esc(g.nota)}</div>`:''}
@@ -1903,7 +1917,7 @@ function openDetalle(tipo, id, viajeId){
       <button onclick="closeModal('modal-detalle')" style="position:absolute;top:12px;right:12px;background:rgba(255,255,255,.2);border:none;color:white;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center">✕</button>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:.5rem">
         <div style="font-size:2.2rem">${cat.icon}</div>
-        ${g.cadena?`<div style="font-size:1.3rem;font-weight:900;opacity:.95">${g.cadena}</div>`:g.vehiculo?`<div style="font-size:1.1rem;font-weight:900;opacity:.95">${g.vehiculo==='tiguan'?'VW Tiguan':'VW Golf'}</div>`:g.tipo_seguro?`<div style="font-size:1.2rem;font-weight:900;opacity:.95">🛡️ ${esc(g.tipo_seguro)}</div>`:''}
+        ${g.cadena?`<div style="font-size:1.3rem;font-weight:900;opacity:.95">${g.cadena}</div>`:g.vehiculo?`<div style="font-size:1.1rem;font-weight:900;opacity:.95">${g.vehiculo==='tiguan'?'VW Tiguan':'VW Golf'}</div>`:g.tipo_seguro?`<div style="font-size:1.2rem;font-weight:900;opacity:.95">🛡️ ${esc(g.tipo_seguro)}</div>`:g.tipo_bebida?`<div style="font-size:1.2rem;font-weight:900;opacity:.95">🍻 ${esc(g.tipo_bebida)}</div>`:''}
       </div>
       <div style="font-size:2rem;font-weight:900;letter-spacing:-.02em">${fmtEur(g.importe)}</div>
       <div style="font-size:.75rem;font-weight:700;opacity:.65;margin-top:3px;text-transform:uppercase;letter-spacing:.08em">${cat.label}</div>`;
@@ -2152,6 +2166,8 @@ async function openGHModal(editId){
     if(enlaceElEdit)enlaceElEdit.value=g.enlace||'';
     const ubicElEdit=document.getElementById('gh-ubicacion');
     if(ubicElEdit)ubicElEdit.value=g.ubicacion||'';
+    resetBebidaSel('gh');
+    if(g.tipo_bebida)loadBebidaSel('gh',g.tipo_bebida);
   }else{
     document.getElementById('gh-imp').value='';
     document.getElementById('gh-desc').value='';
@@ -2164,6 +2180,7 @@ async function openGHModal(editId){
     if(enlaceElNew)enlaceElNew.value='';
     const ubicElNew=document.getElementById('gh-ubicacion');
     if(ubicElNew)ubicElNew.value='';
+    resetBebidaSel('gh');
   }
   // Si la categoría seleccionada es un fijo, abrir el acordeón (ya con selCatH definitivo)
   const esFijo=FIJO_IDS.includes(selCatH);
@@ -2178,6 +2195,8 @@ async function openGHModal(editId){
   if(enlaceSecH)enlaceSecH.style.display=selCatH==='ocio'?'':'none';
   const ubicSecH=document.getElementById('gh-ubicacion-section');
   if(ubicSecH)ubicSecH.style.display=selCatH==='ocio'?'':'none';
+  const bebidaSecH=document.getElementById('gh-bebida-section');
+  if(bebidaSecH)bebidaSecH.style.display=selCatH==='ocio'?'':'none';
   const gasSecH=document.getElementById('gh-gasolina-section');
   if(gasSecH)gasSecH.style.display=selCatH==='gasolina'?'':'none';
   resetGasFields('gh');
@@ -2231,7 +2250,7 @@ async function saveGastoHogar(){
     const ubicacion=document.getElementById('gh-ubicacion')?.value.trim()||null;
     const kmValRaw=(selCatH==='coche'||selCatH==='gasolina')?parseFloat(document.getElementById('gh-km-actual')?.value||''):NaN;
     const kmVal=(!isNaN(kmValRaw)&&kmValRaw>0)?kmValRaw:null;
-    const data={importe,categoria:selCatH,descripcion:document.getElementById('gh-desc').value.trim(),nota:document.getElementById('gh-nota').value.trim()||null,enlace:enlace||null,ubicacion:ubicacion||null,fecha,quien:document.getElementById('gh-quien').value,recurrente:document.getElementById('gh-rec').checked||null,foto_url:foto_url||null,foto_path:foto_path||null,foto_lugar_url:foto_lugar_url||null,foto_lugar_path:foto_lugar_path||null,...(selCatH==='gasolina'?getGasData('gh'):{}),...(selCatH==='seguros'?{tipo_seguro:getTipoSeguroData('gh')}:{}),...(kmVal?{km_actual:kmVal,km_vehiculo:selKmVeh}:{}),timestamp:Date.now()};
+    const data={importe,categoria:selCatH,descripcion:document.getElementById('gh-desc').value.trim(),nota:document.getElementById('gh-nota').value.trim()||null,enlace:enlace||null,ubicacion:ubicacion||null,fecha,quien:document.getElementById('gh-quien').value,recurrente:document.getElementById('gh-rec').checked||null,foto_url:foto_url||null,foto_path:foto_path||null,foto_lugar_url:foto_lugar_url||null,foto_lugar_path:foto_lugar_path||null,...(selCatH==='gasolina'?getGasData('gh'):{}),...(selCatH==='seguros'?{tipo_seguro:getTipoSeguroData('gh')}:{}),...(selCatH==='ocio'?{tipo_bebida:getBebidaData('gh')}:{}),...(kmVal?{km_actual:kmVal,km_vehiculo:selKmVeh}:{}),timestamp:Date.now()};
     let finalGastoId=editGHId;
     if(editGHId){
       // Si la fecha cambia de mes, mover a nuevo mes
@@ -2281,6 +2300,9 @@ function detalleGasto(g,cat){
   }
   if(cat.id==='seguros'&&g.tipo_seguro){
     return '🛡️ '+esc(g.tipo_seguro)+(g.descripcion?' — '+esc(g.descripcion):'');
+  }
+  if(cat.id==='ocio'&&g.tipo_bebida){
+    return '🍻 '+esc(g.tipo_bebida)+(g.descripcion?' — '+esc(g.descripcion):'');
   }
   return esc(g.descripcion||'—');
 }
@@ -2775,6 +2797,42 @@ function exportGasolinaPDF(){
   w.document.close();
 }
 // ══ (cadenas de supermercado ahora son categorías propias — ver CAT_HOGAR) ══
+const TIPOS_BEBIDA=['Barril cerveza','Vino','Whisky','Ron','Vodka'];
+let selBebida={gh:'Barril cerveza'};
+
+function selectBebida(prefix,tipo,btn){
+  selBebida[prefix]=tipo;
+  document.querySelectorAll(`#${prefix}-bebida-tipo .gas-veh`).forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const otroInput=document.getElementById(`${prefix}-bebida-otro`);
+  if(otroInput)otroInput.style.display=tipo==='otro'?'block':'none';
+}
+function getBebidaData(prefix){
+  const tipo=selBebida[prefix]||'Barril cerveza';
+  if(tipo==='otro'){
+    const val=document.getElementById(`${prefix}-bebida-otro`)?.value.trim();
+    return val||'Otra';
+  }
+  return tipo;
+}
+function resetBebidaSel(prefix){
+  selBebida[prefix]='Barril cerveza';
+  const btns=document.querySelectorAll(`#${prefix}-bebida-tipo .gas-veh`);
+  btns.forEach((b,i)=>b.classList.toggle('active',i===0));
+  const otroInput=document.getElementById(`${prefix}-bebida-otro`);
+  if(otroInput){otroInput.style.display='none';otroInput.value='';}
+}
+function loadBebidaSel(prefix,tipo){
+  if(!tipo)return;
+  selBebida[prefix]=tipo;
+  document.querySelectorAll(`#${prefix}-bebida-tipo .gas-veh`).forEach(b=>{
+    b.classList.toggle('active',b.textContent.trim().includes(tipo)||(tipo!=='otro'&&!TIPOS_BEBIDA.includes(tipo)&&b.textContent.includes('Otra')));
+  });
+  const otroInput=document.getElementById(`${prefix}-bebida-otro`);
+  if(!TIPOS_BEBIDA.includes(tipo)){
+    if(otroInput){otroInput.style.display='block';otroInput.value=tipo;}
+  }
+}
 
 let catFiltro='mes';
 let currentCatId=null;
@@ -3459,6 +3517,9 @@ function selectCat(cid,catId,type){
     const ubicSecH=document.getElementById('gh-ubicacion-section');
     if(ubicSecH)ubicSecH.style.display=catId==='ocio'?'':'none';
     if(catId!=='ocio'){const u=document.getElementById('gh-ubicacion');if(u)u.value='';}
+    const bebidaSecH=document.getElementById('gh-bebida-section');
+    if(bebidaSecH)bebidaSecH.style.display=catId==='ocio'?'':'none';
+    if(catId!=='ocio')resetBebidaSel('gh');
     const gasSecH=document.getElementById('gh-gasolina-section');
     if(gasSecH)gasSecH.style.display=catId==='gasolina'?'':'none';
     if(catId!=='gasolina')resetGasFields('gh');
