@@ -642,6 +642,7 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
         <button class="sub-pill active" onclick="switchBalanceSub('resumen',this)">📊 Resumen</button>
         <button class="sub-pill" onclick="switchBalanceSub('ajustes',this)">⚖️ Ajustes por socio</button>
         <button class="sub-pill" onclick="switchBalanceSub('historico',this)">🧾 Histórico</button>
+        <button class="sub-pill" onclick="switchBalanceSub('auditoria',this)">🗂️ Auditoría</button>
       </div>
       <div id="balance-resumen">
         <div id="balance-content"></div>
@@ -668,6 +669,12 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
           </select>
         </div>
         <div id="balance-historico-content"></div>
+      </div>
+      <div id="balance-auditoria" style="display:none">
+        <div class="empty" style="padding:.75rem 1rem;background:#fff7ed;border-radius:12px;margin-bottom:.75rem">
+          <div style="font-size:.78rem;color:#9a3412;text-align:left">🔒 Registro permanente: aquí queda constancia de todo lo que se ha editado o borrado, aunque ya no aparezca en las cuentas. Nadie puede eliminar estas entradas desde la app.</div>
+        </div>
+        <div id="balance-auditoria-content"></div>
       </div>
     </div>
 
@@ -1535,8 +1542,10 @@ function switchBalanceSub(sub,btn){
   document.getElementById('balance-resumen').style.display=sub==='resumen'?'':'none';
   document.getElementById('balance-ajustes').style.display=sub==='ajustes'?'':'none';
   document.getElementById('balance-historico').style.display=sub==='historico'?'':'none';
+  document.getElementById('balance-auditoria').style.display=sub==='auditoria'?'':'none';
   if(sub==='ajustes')renderAjustesPorSocio();
   if(sub==='historico')renderHistorico();
+  if(sub==='auditoria')renderAuditoria();
 }
 function switchHogarSub(sub,btn){
   hogarSub=sub;
@@ -2349,6 +2358,8 @@ async function saveGastoHogar(){
     const data={importe,categoria:selCatH,descripcion:document.getElementById('gh-desc').value.trim(),nota:document.getElementById('gh-nota').value.trim()||null,enlace:enlace||null,ubicacion:ubicacion||null,fecha,quien:quienVal,recurrente:document.getElementById('gh-rec').checked||null,foto_url:foto_url||null,foto_path:foto_path||null,foto_lugar_url:foto_lugar_url||null,foto_lugar_path:foto_lugar_path||null,...(selCatH==='gasolina'?getGasData('gh'):{}),...(selCatH==='seguros'?{tipo_seguro:getTipoSeguroData('gh')}:{}),...(selCatH==='ocio'?{tipo_bebida:getBebidaData('gh')}:{}),...(selCatH==='ajustes'?{socio_relacionado:getAjusteData('gh-ajuste-select')}:{}),...(kmVal?{km_actual:kmVal,km_vehiculo:selKmVeh}:{}),...(quienVal===BANCO_ID?{registrado_por:currentUser.id}:{registrado_por:null}),timestamp:Date.now()};
     let finalGastoId=editGHId;
     if(editGHId){
+      const antes=hogarData[editGHId]||null;
+      await logAuditoria('gasto','editado',antes,data);
       // Si la fecha cambia de mes, mover a nuevo mes
       if(mesGasto!==mesActual){
         await dbDel(`gastos_hogar/${mesActual}/${editGHId}`);
@@ -2373,8 +2384,22 @@ async function saveGastoHogar(){
   finally{setUploading('gh',false);}
 }
 
+function nowMonthKey(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}`;}
+async function logAuditoria(tipo,accion,datosAntes,datosDespues){
+  try{
+    await dbPush(`auditoria/${nowMonthKey()}`,{
+      tipo,accion,
+      datos_antes:datosAntes||null,
+      datos_despues:datosDespues||null,
+      quien_lo_hizo:currentUser?.id||null,
+      fecha_accion:Date.now()
+    });
+  }catch(e){console.error('No se pudo registrar en el historial de auditoría:',e);}
+}
+
 async function delGH(id,photoPath,lugarPath=''){
   if(!confirm('¿Eliminar este gasto?'))return;
+  await logAuditoria('gasto','eliminado',hogarData[id]||null,null);
   if(photoPath)await delPhoto(photoPath);
   if(lugarPath)await delPhoto(lugarPath);
   await dbDel(`gastos_hogar/${get_currentMonth()}/${id}`);
@@ -3524,6 +3549,54 @@ async function renderHistorico(){
   }).join('')+'</div>';
 }
 
+// ══ AUDITORÍA (registro permanente de ediciones y borrados) ══
+function fmtFechaHora(ts){
+  if(!ts)return'—';
+  const d=new Date(ts);
+  return d.toLocaleDateString('es-ES')+' '+d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+}
+function resumenSnapshot(tipo,snap){
+  if(!snap)return'—';
+  const cat=tipo==='gasto'?getCatAll(snap.categoria):getCat(CAT_VIAJE,snap.categoria);
+  return`${cat.icon} ${cat.label} · ${fmtEur(snap.importe)}${snap.descripcion?' · '+esc(snap.descripcion):''}`;
+}
+async function renderAuditoria(){
+  const el=document.getElementById('balance-auditoria-content');
+  el.innerHTML=`<div class="anual-loading"><div class="spinner" style="margin:0 auto 8px"></div>Cargando auditoría...</div>`;
+  const thisYear=new Date().getFullYear();
+  const years=[];
+  for(let y=FOUNDING_YEAR;y<=thisYear;y++)years.push(y);
+  const monthKeys=[];
+  years.forEach(y=>{for(let m=1;m<=12;m++)monthKeys.push(`${y}-${pad(m)}`);});
+  const results=await Promise.all(monthKeys.map(k=>dbGet(`auditoria/${k}`)));
+  let entradas=[];
+  results.forEach(data=>{
+    Object.values(data||{}).forEach(e=>entradas.push(e));
+  });
+  entradas.sort((a,b)=>(b.fecha_accion||0)-(a.fecha_accion||0));
+
+  if(!entradas.length){
+    el.innerHTML=`<div class="empty" style="padding:1.5rem"><div class="ei">🗂️</div><div class="et">Sin ediciones ni borrados registrados todavía</div></div>`;
+    return;
+  }
+
+  el.innerHTML=entradas.map(e=>{
+    const quien=FAMILY.find(f=>f.id===e.quien_lo_hizo)?.name||'?';
+    const esEliminado=e.accion==='eliminado';
+    return`<div class="card" style="margin-bottom:.6rem;padding:.8rem 1rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:.68rem;font-weight:800;padding:2px 9px;border-radius:20px;background:${esEliminado?'#fef2f2':'#fffbeb'};color:${esEliminado?'#b91c1c':'#b45309'}">${esEliminado?'🗑️ Eliminado':'✏️ Editado'} · ${e.tipo==='gasto'?'Gasto':'Ingreso'}</span>
+        <span style="font-size:.68rem;color:#94a3b8">${fmtFechaHora(e.fecha_accion)}</span>
+      </div>
+      ${esEliminado
+        ?`<div style="font-size:.85rem">${resumenSnapshot(e.tipo,e.datos_antes)}</div>`
+        :`<div style="font-size:.8rem;color:#94a3b8;text-decoration:line-through">${resumenSnapshot(e.tipo,e.datos_antes)}</div>
+          <div style="font-size:.85rem;margin-top:2px">→ ${resumenSnapshot(e.tipo,e.datos_despues)}</div>`}
+      <div style="font-size:.68rem;color:#94a3b8;margin-top:6px">Por: ${esc(quien)}</div>
+    </div>`;
+  }).join('');
+}
+
 function exportBalanceAnualPDF(){
   if(!lastBalanceAnual)return;
   const {yearResults,totalGastos,totalIngresos,totalBalance,gastosCatData,ingresosCatData}=lastBalanceAnual;
@@ -3764,7 +3837,10 @@ async function saveGastoViaje(){
     }
     const quienVal=document.getElementById('gv-quien').value;
     const data={importe,categoria:selCatV,descripcion:document.getElementById('gv-desc').value.trim(),nota:document.getElementById('gv-nota').value.trim()||null,fecha:document.getElementById('gv-fecha').value||todayISO(),quien:quienVal,foto_url:foto_url||null,foto_path:foto_path||null,...((selCatV==='otros'||selCatV==='cuota_socio')?{socio_relacionado:getAjusteData('gv-ajuste-select')}:{}),registrado_por:quienVal===BANCO_ID?currentUser.id:null,timestamp:Date.now()};
-    if(editGVId){await dbUpd(`ingresos/${mes}/${editGVId}`,data);toast('✅ Ingreso actualizado');}
+    if(editGVId){
+      await logAuditoria('ingreso','editado',viajesData[editGVId]||null,data);
+      await dbUpd(`ingresos/${mes}/${editGVId}`,data);toast('✅ Ingreso actualizado');
+    }
     else{await dbPush(`ingresos/${mes}`,data);toast('✅ Ingreso añadido');}
     closeModal('modal-gv');
   }catch(e){console.error(e);toast('❌ Error al guardar');}
@@ -3773,6 +3849,7 @@ async function saveGastoViaje(){
 
 async function delGV(id,photoPath){
   if(!confirm('¿Eliminar este ingreso?'))return;
+  await logAuditoria('ingreso','eliminado',viajesData[id]||null,null);
   if(photoPath)await delPhoto(photoPath);
   await dbDel(`ingresos/${get_currentMonth()}/${id}`);toast('🗑️ Ingreso eliminado');
 }
