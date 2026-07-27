@@ -613,6 +613,10 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
           <div class="chart-container-sm"><canvas id="chart-ing-bar"></canvas></div>
         </div>
         <div class="card">
+          <div class="card-title">🧑‍🤝‍🧑 Cuota Socio por persona (últimos 6 meses)</div>
+          <div id="ing-cuotas-6m"></div>
+        </div>
+        <div class="card">
           <div class="card-title">🔎 Por franja de fechas</div>
           <div class="frow">
             <div class="fg"><label class="flabel">Desde</label><input type="date" class="finput" id="ing-rango-start"></div>
@@ -854,9 +858,9 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
     <div class="fg"><label class="flabel">Importe (€)</label>
       <input type="number" class="finput-big" id="gv-imp" placeholder="0,00" step="0.01" min="0"></div>
     <div class="fg"><label class="flabel">Categoría</label><div class="cat-picker" id="gv-cat"></div></div>
-    <!-- AJUSTES — solo categoría Otros: de quién es esta devolución -->
+    <!-- AJUSTES — Cuota socio (¿qué socio?) y Otros (aportación de) -->
     <div class="fg" id="gv-ajuste-section" style="display:none">
-      <label class="flabel">⚖️ Aportación de...</label>
+      <label class="flabel" id="gv-ajuste-lbl">⚖️ Aportación de...</label>
       <select class="finput" id="gv-ajuste-select"></select>
     </div>
     <div class="fg"><label class="flabel">Concepto</label>
@@ -1062,6 +1066,16 @@ const OWNER_EMAIL='vivoenmurcia@gmail.com'; // único con acceso a "Socios" (inv
 const BANCO_ID='banco_pena'; // pseudo-socio: representa el dinero común de la Peña (no es una persona)
 const BANCO_ENTRY={id:BANCO_ID,name:'🏦 Peña (banco)',email:'',avClass:'av-banco',letter:'🏦',owner:false,tesorero:false};
 function isTesorero(){return currentUser?.email===OWNER_EMAIL||!!currentUser?.tesorero;}
+function quienOpciones(existingQuien){
+  const mine=FAMILY.find(f=>f.id===currentUser?.id)||{id:currentUser?.id,name:currentUser?.name||'Yo'};
+  const opts=[mine];
+  if(isTesorero())opts.push(BANCO_ENTRY);
+  if(existingQuien&&!opts.some(o=>o.id===existingQuien)){
+    const extra=FAMILY.find(f=>f.id===existingQuien);
+    if(extra)opts.push(extra);
+  }
+  return opts;
+}
 function quienLabel(g){
   const qid=g.quien||g.quien_pago;
   const base=FAMILY.find(f=>f.id===qid)?.name||'?';
@@ -2216,7 +2230,7 @@ async function openGHModal(editId){
   }
   buildCatPicker('gh-cat-fijos',CAT_FIJOS,'h');
   buildCatPicker('gh-cat',CAT_HOGAR,'h');
-  document.getElementById('gh-quien').innerHTML=(isTesorero()?FAMILY:FAMILY.filter(f=>f.id!==BANCO_ID)).map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
+  document.getElementById('gh-quien').innerHTML=quienOpciones(editId&&hogarData[editId]?hogarData[editId].quien:null).map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
   rmPhoto('gh');rmPhoto('ghl');document.getElementById('budget-warn-box').style.display='none';
   let legacyTipoSeguro=null;
   if(editId&&hogarData[editId]){
@@ -3236,14 +3250,34 @@ async function loadBarChartIng(){
     const d=new Date(currentYear,currentMonthNum-1-i,1);
     months.push({key:monthKey(d),label:MESES_CORTO[d.getMonth()]});
   }
-  const results=await Promise.all(months.map(m=>dbGet(`ingresos/${m.key}`).then(d=>({...m,total:Object.values(d||{}).reduce((s,g)=>s+parseFloat(g.importe||0),0)}))));
+  const results=await Promise.all(months.map(m=>dbGet(`ingresos/${m.key}`).then(d=>({...m,data:d||{}}))));
   const canvas=document.getElementById('chart-ing-bar');
-  if(!canvas)return;
-  chartIngBar=new Chart(canvas.getContext('2d'),{
-    type:'bar',
-    data:{labels:results.map(r=>r.label),datasets:[{label:'Ingresado',data:results.map(r=>r.total),backgroundColor:results.map((_,i)=>i===5?'#16a34a':'#bbf7d0'),borderRadius:6,borderSkipped:false}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>v+'€',font:{size:10}},grid:{color:'#f1f5f9'}},x:{grid:{display:false},ticks:{font:{size:11,weight:'bold'}}}}}
-  });
+  if(canvas){
+    chartIngBar=new Chart(canvas.getContext('2d'),{
+      type:'bar',
+      data:{labels:results.map(r=>r.label),datasets:[{label:'Ingresado',data:results.map(r=>Object.values(r.data).reduce((s,g)=>s+parseFloat(g.importe||0),0)),backgroundColor:results.map((_,i)=>i===5?'#16a34a':'#bbf7d0'),borderRadius:6,borderSkipped:false}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>v+'€',font:{size:10}},grid:{color:'#f1f5f9'}},x:{grid:{display:false},ticks:{font:{size:11,weight:'bold'}}}}}
+    });
+  }
+  const porSocio={};
+  results.forEach(r=>Object.values(r.data).forEach(x=>{
+    if(x.categoria==='cuota_socio'&&x.socio_relacionado){
+      porSocio[x.socio_relacionado]=(porSocio[x.socio_relacionado]||0)+parseFloat(x.importe||0);
+    }
+  }));
+  renderCuotasPorSocio('ing-cuotas-6m',porSocio);
+}
+function renderCuotasPorSocio(elId,porSocio){
+  const el=document.getElementById(elId);if(!el)return;
+  const filas=FAMILY.filter(f=>f.id!==BANCO_ID).map(f=>({...f,total:porSocio[f.id]||0})).filter(f=>f.total>0).sort((a,b)=>b.total-a.total);
+  if(!filas.length){el.innerHTML='<div class="empty" style="padding:1rem"><div class="et">Sin cuotas de socio en este periodo</div></div>';return;}
+  el.innerHTML=filas.map(f=>`<div class="person-row">
+    <div class="person-row-left">
+      <div class="user-avatar ${f.avClass}" style="width:34px;height:34px;font-size:11px">${f.letter}</div>
+      <div style="font-size:.85rem;font-weight:800">${esc(f.name)}</div>
+    </div>
+    <div style="font-size:.95rem;font-weight:900;color:#16a34a">${fmtEur(f.total)}</div>
+  </div><div class="divider"></div>`).join('');
 }
 
 // ══ INGRESOS: ANUAL ══
@@ -3281,7 +3315,18 @@ async function loadAnualIng(){
     }
   });
   html+='</div>';
+  const porSocio={};
+  results.forEach(r=>Object.values(r.data).forEach(x=>{
+    if(x.categoria==='cuota_socio'&&x.socio_relacionado){
+      porSocio[x.socio_relacionado]=(porSocio[x.socio_relacionado]||0)+parseFloat(x.importe||0);
+    }
+  }));
+  html+=`<div class="card" style="margin-top:.85rem">
+    <div class="card-title">🧑‍🤝‍🧑 Cuota Socio por persona (${currentYear})</div>
+    <div id="ing-cuotas-anual"></div>
+  </div>`;
   el.innerHTML=html;
+  renderCuotasPorSocio('ing-cuotas-anual',porSocio);
 }
 function goToMonthIng(num){
   currentMonthNum=num;buildMonthPills();attachHLsn();attachVLsn();
@@ -3337,7 +3382,16 @@ async function loadBalance(){
   let html=`<div class="anual-total-card" style="background:${isPos?'linear-gradient(135deg,#14532d,#166534)':'linear-gradient(135deg,#7f1d1d,#991b1b)'}">
     <div class="anual-total-lbl">⚖️ Balance total acumulado</div>
     <div class="anual-total-amount">${isPos?'+':'−'}${fmtEur(Math.abs(totalBalance))}</div>
-    <div class="anual-total-sub">↑ Ingresos: ${fmtEur(totalIngresos)} · ↓ Gastos: ${fmtEur(totalGastos)}</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin:.6rem 0">
+    <div class="sum-card" style="border-left:4px solid #16a34a;text-align:center">
+      <div style="font-size:.68rem;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:.05em">↑ Ingresos</div>
+      <div style="font-size:1.2rem;font-weight:900;color:#16a34a">${fmtEur(totalIngresos)}</div>
+    </div>
+    <div class="sum-card" style="border-left:4px solid #ef4444;text-align:center">
+      <div style="font-size:.68rem;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.05em">↓ Gastos</div>
+      <div style="font-size:1.2rem;font-weight:900;color:#ef4444">${fmtEur(totalGastos)}</div>
+    </div>
   </div>
   <button class="export-btn" style="margin:.6rem 0" onclick="exportBalanceAnualPDF()">📄 Exportar resumen anual en PDF</button>`;
 
@@ -3351,7 +3405,7 @@ async function loadBalance(){
     return`<div class="anual-card" style="border-left:3px solid ${pos?'#16a34a':'#ef4444'}">
       <div class="anual-month-name">${y.year}</div>
       <div class="anual-amount" style="color:${pos?'#16a34a':'#ef4444'}">${pos?'+':'−'}${fmtEur(Math.abs(y.balance))}</div>
-      <div class="anual-sub">↑${fmtEur(y.ingresos)} · ↓${fmtEur(y.gastos)}</div>
+      <div class="anual-sub"><span style="color:#16a34a;font-weight:700">↑ ${fmtEur(y.ingresos)}</span> · <span style="color:#ef4444;font-weight:700">↓ ${fmtEur(y.gastos)}</span></div>
     </div>`;
   }).join('')+'</div>';
 
@@ -3523,7 +3577,16 @@ async function calcBalanceRango(){
   resEl.innerHTML=`<div class="anual-total-card" style="background:${isPos?'linear-gradient(135deg,#14532d,#166534)':'linear-gradient(135deg,#7f1d1d,#991b1b)'}">
     <div class="anual-total-lbl">${fmtDate(start)} — ${fmtDate(end)}</div>
     <div class="anual-total-amount">${isPos?'+':'−'}${fmtEur(Math.abs(balance))}</div>
-    <div class="anual-total-sub">↑ Ingresos: ${fmtEur(ingresos)} · ↓ Gastos: ${fmtEur(gastos)}</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin:.6rem 0">
+    <div class="sum-card" style="border-left:4px solid #16a34a;text-align:center">
+      <div style="font-size:.68rem;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:.05em">↑ Ingresos</div>
+      <div style="font-size:1.2rem;font-weight:900;color:#16a34a">${fmtEur(ingresos)}</div>
+    </div>
+    <div class="sum-card" style="border-left:4px solid #ef4444;text-align:center">
+      <div style="font-size:.68rem;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.05em">↓ Gastos</div>
+      <div style="font-size:1.2rem;font-weight:900;color:#ef4444">${fmtEur(gastos)}</div>
+    </div>
   </div>
   <button class="export-btn" style="margin-top:.6rem" onclick="exportBalanceRangoPDF()">📄 Exportar este rango en PDF</button>`;
 }
@@ -3610,7 +3673,7 @@ function exportIngresosMes(){
   const porPersona=FAMILY.map(f=>({...f,total:entries.filter(g=>g.quien===f.id).reduce((s,g)=>s+parseFloat(g.importe||0),0),count:entries.filter(g=>g.quien===f.id).length})).filter(f=>f.total>0).sort((a,b)=>b.total-a.total);
   const porCat=CAT_VIAJE.map(c=>({...c,spent:entries.filter(g=>g.categoria===c.id).reduce((s,g)=>s+parseFloat(g.importe||0),0)})).filter(c=>c.spent>0).sort((a,b)=>b.spent-a.spent);
   const rowsHtml=entries.map(g=>{const cat=getCat(CAT_VIAJE,g.categoria);const quien=quienLabel(g);
-    const concepto=(g.categoria==='otros'&&g.socio_relacionado)?'⚖️ '+esc(FAMILY.find(f=>f.id===g.socio_relacionado)?.name||'?')+(g.descripcion?' — '+esc(g.descripcion):''):esc(g.descripcion||cat.label);
+    const concepto=((g.categoria==='otros'||g.categoria==='cuota_socio')&&g.socio_relacionado)?'⚖️ '+esc(FAMILY.find(f=>f.id===g.socio_relacionado)?.name||'?')+(g.descripcion?' — '+esc(g.descripcion):''):esc(g.descripcion||cat.label);
     return '<tr><td>'+fmtDate(g.fecha)+'</td><td>'+cat.icon+' '+cat.label+'</td><td>'+concepto+(g.nota?'<br><small>'+esc(g.nota)+'</small>':'')+'</td><td>'+quien+'</td><td class="num">'+fmtEur(g.importe)+'</td></tr>';
   }).join('');
   const w=window.open('','_blank');
@@ -3654,7 +3717,7 @@ async function openGVModal(editId){
     catch(e){console.error(e);}
   }
   buildCatPicker('gv-cat',CAT_VIAJE,'v');rmPhoto('gv');
-  document.getElementById('gv-quien').innerHTML=(isTesorero()?FAMILY:FAMILY.filter(f=>f.id!==BANCO_ID)).map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
+  document.getElementById('gv-quien').innerHTML=quienOpciones(editId&&viajesData[editId]?viajesData[editId].quien:null).map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
   buildAjustePicker('gv-ajuste-select');
   if(editId&&viajesData[editId]){
     const g=viajesData[editId];
@@ -3677,7 +3740,10 @@ async function openGVModal(editId){
     resetAjusteSel('gv-ajuste-select');
   }
   const ajusteSecV=document.getElementById('gv-ajuste-section');
-  if(ajusteSecV)ajusteSecV.style.display=selCatV==='otros'?'':'none';
+  const needsAjusteV=selCatV==='otros'||selCatV==='cuota_socio';
+  if(ajusteSecV)ajusteSecV.style.display=needsAjusteV?'':'none';
+  const ajusteLblV=document.getElementById('gv-ajuste-lbl');
+  if(ajusteLblV)ajusteLblV.textContent=selCatV==='cuota_socio'?'🧑\u200d🤝\u200d🧑 ¿Qué socio paga esta cuota?':'⚖️ Aportación de...';
   highlightCat('gv-cat',selCatV,'v');openModal('modal-gv');
 }
 
@@ -3686,7 +3752,7 @@ async function saveGastoViaje(){
   if(!importe||importe<=0){toast('⚠️ Introduce un importe válido');return;}
   if(!document.getElementById('gv-quien').value){toast('⚠️ No se ha podido cargar la lista de socios, cierra y vuelve a abrir el formulario');return;}
   if(document.getElementById('gv-quien').value===BANCO_ID&&!isTesorero()){toast('❌ Solo los tesoreros pueden usar "Peña (banco)"');return;}
-  if(selCatV==='otros'&&!getAjusteData('gv-ajuste-select')){toast('⚠️ Elige de quién es esta devolución');return;}
+  if((selCatV==='otros'||selCatV==='cuota_socio')&&!getAjusteData('gv-ajuste-select')){toast(selCatV==='cuota_socio'?'⚠️ Elige qué socio paga esta cuota':'⚠️ Elige de quién es esta devolución');return;}
   setUploading('gv',true);
   try{
     let foto_url=existUrl.gv||null,foto_path=existPath.gv||null;
@@ -3697,7 +3763,7 @@ async function saveGastoViaje(){
       foto_url=res.url;foto_path=res.path;
     }
     const quienVal=document.getElementById('gv-quien').value;
-    const data={importe,categoria:selCatV,descripcion:document.getElementById('gv-desc').value.trim(),nota:document.getElementById('gv-nota').value.trim()||null,fecha:document.getElementById('gv-fecha').value||todayISO(),quien:quienVal,foto_url:foto_url||null,foto_path:foto_path||null,...(selCatV==='otros'?{socio_relacionado:getAjusteData('gv-ajuste-select')}:{}),registrado_por:quienVal===BANCO_ID?currentUser.id:null,timestamp:Date.now()};
+    const data={importe,categoria:selCatV,descripcion:document.getElementById('gv-desc').value.trim(),nota:document.getElementById('gv-nota').value.trim()||null,fecha:document.getElementById('gv-fecha').value||todayISO(),quien:quienVal,foto_url:foto_url||null,foto_path:foto_path||null,...((selCatV==='otros'||selCatV==='cuota_socio')?{socio_relacionado:getAjusteData('gv-ajuste-select')}:{}),registrado_por:quienVal===BANCO_ID?currentUser.id:null,timestamp:Date.now()};
     if(editGVId){await dbUpd(`ingresos/${mes}/${editGVId}`,data);toast('✅ Ingreso actualizado');}
     else{await dbPush(`ingresos/${mes}`,data);toast('✅ Ingreso añadido');}
     closeModal('modal-gv');
@@ -3758,12 +3824,15 @@ function selectCat(cid,catId,type){
   } else {
     highlightCat(cid,catId,type);
     if(type==='v'){
+      const needsAjusteV=catId==='otros'||catId==='cuota_socio';
       const ajusteSecV=document.getElementById('gv-ajuste-section');
       if(ajusteSecV){
-        ajusteSecV.style.display=catId==='otros'?'':'none';
-        if(catId==='otros')buildAjustePicker('gv-ajuste-select');
+        ajusteSecV.style.display=needsAjusteV?'':'none';
+        if(needsAjusteV)buildAjustePicker('gv-ajuste-select');
       }
-      if(catId!=='otros')resetAjusteSel('gv-ajuste-select');
+      const ajusteLblV=document.getElementById('gv-ajuste-lbl');
+      if(ajusteLblV)ajusteLblV.textContent=catId==='cuota_socio'?'🧑\u200d🤝\u200d🧑 ¿Qué socio paga esta cuota?':'⚖️ Aportación de...';
+      if(!needsAjusteV)resetAjusteSel('gv-ajuste-select');
     }
   }
   if(type!=='v')checkBudgetWarn();
