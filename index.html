@@ -724,7 +724,7 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
     <!-- AJUSTES — solo categoría Ajustes: a quién se le paga/devuelve -->
     <div class="fg" id="gh-ajuste-section" style="display:none">
       <label class="flabel">⚖️ ¿A quién se le paga/devuelve?</label>
-      <div style="display:flex;flex-wrap:wrap;gap:6px" id="gh-ajuste-picker"></div>
+      <select class="finput" id="gh-ajuste-select"></select>
     </div>
     <!-- GASOLINA: vehículo arriba, aplica a todos los campos -->
     <div id="gh-gasolina-section" style="display:none">
@@ -835,8 +835,8 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
     <div class="fg"><label class="flabel">Categoría</label><div class="cat-picker" id="gv-cat"></div></div>
     <!-- AJUSTES — solo categoría Otros: de quién es esta devolución -->
     <div class="fg" id="gv-ajuste-section" style="display:none">
-      <label class="flabel">⚖️ ¿De quién es esta devolución?</label>
-      <div style="display:flex;flex-wrap:wrap;gap:6px" id="gv-ajuste-picker"></div>
+      <label class="flabel">⚖️ Aportación de...</label>
+      <select class="finput" id="gv-ajuste-select"></select>
     </div>
     <div class="fg"><label class="flabel">Concepto</label>
       <input type="text" class="finput vf" id="gv-desc" placeholder="Ej: Cuota mensual, venta de camisetas..."></div>
@@ -2209,9 +2209,9 @@ async function openGHModal(editId){
     if(ubicElEdit)ubicElEdit.value=g.ubicacion||'';
     resetBebidaSel('gh');
     if(g.tipo_bebida)loadBebidaSel('gh',g.tipo_bebida);
-    buildAjustePicker('gh-ajuste-picker','gh');
-    resetAjusteSel('gh');
-    if(g.socio_relacionado)loadAjusteSel('gh',g.socio_relacionado);
+    buildAjustePicker('gh-ajuste-select');
+    resetAjusteSel('gh-ajuste-select');
+    if(g.socio_relacionado)loadAjusteSel('gh-ajuste-select',g.socio_relacionado);
   }else{
     document.getElementById('gh-imp').value='';
     document.getElementById('gh-desc').value='';
@@ -2225,8 +2225,8 @@ async function openGHModal(editId){
     const ubicElNew=document.getElementById('gh-ubicacion');
     if(ubicElNew)ubicElNew.value='';
     resetBebidaSel('gh');
-    buildAjustePicker('gh-ajuste-picker','gh');
-    resetAjusteSel('gh');
+    buildAjustePicker('gh-ajuste-select');
+    resetAjusteSel('gh-ajuste-select');
   }
   // Si la categoría seleccionada es un fijo, abrir el acordeón (ya con selCatH definitivo)
   const esFijo=FIJO_IDS.includes(selCatH);
@@ -2278,7 +2278,7 @@ async function saveGastoHogar(){
   if(!importe||importe<=0){toast('⚠️ Introduce un importe válido');return;}
   if(!document.getElementById('gh-quien').value){toast('⚠️ No se ha podido cargar la lista de socios, cierra y vuelve a abrir el formulario');return;}
   if(document.getElementById('gh-quien').value===BANCO_ID&&!isTesorero()){toast('❌ Solo los tesoreros pueden usar "Peña (banco)"');return;}
-  if(selCatH==='ajustes'&&!getAjusteData('gh')){toast('⚠️ Elige a quién se le paga/devuelve');return;}
+  if(selCatH==='ajustes'&&!getAjusteData('gh-ajuste-select')){toast('⚠️ Elige a quién se le paga/devuelve');return;}
   setUploading('gh',true);
   try{
     const fecha=document.getElementById('gh-fecha').value||todayISO();
@@ -2301,7 +2301,7 @@ async function saveGastoHogar(){
     const kmValRaw=(selCatH==='coche'||selCatH==='gasolina')?parseFloat(document.getElementById('gh-km-actual')?.value||''):NaN;
     const kmVal=(!isNaN(kmValRaw)&&kmValRaw>0)?kmValRaw:null;
     const quienVal=document.getElementById('gh-quien').value;
-    const data={importe,categoria:selCatH,descripcion:document.getElementById('gh-desc').value.trim(),nota:document.getElementById('gh-nota').value.trim()||null,enlace:enlace||null,ubicacion:ubicacion||null,fecha,quien:quienVal,recurrente:document.getElementById('gh-rec').checked||null,foto_url:foto_url||null,foto_path:foto_path||null,foto_lugar_url:foto_lugar_url||null,foto_lugar_path:foto_lugar_path||null,...(selCatH==='gasolina'?getGasData('gh'):{}),...(selCatH==='seguros'?{tipo_seguro:getTipoSeguroData('gh')}:{}),...(selCatH==='ocio'?{tipo_bebida:getBebidaData('gh')}:{}),...(selCatH==='ajustes'?{socio_relacionado:getAjusteData('gh')}:{}),...(kmVal?{km_actual:kmVal,km_vehiculo:selKmVeh}:{}),...(quienVal===BANCO_ID?{registrado_por:currentUser.id}:{registrado_por:null}),timestamp:Date.now()};
+    const data={importe,categoria:selCatH,descripcion:document.getElementById('gh-desc').value.trim(),nota:document.getElementById('gh-nota').value.trim()||null,enlace:enlace||null,ubicacion:ubicacion||null,fecha,quien:quienVal,recurrente:document.getElementById('gh-rec').checked||null,foto_url:foto_url||null,foto_path:foto_path||null,foto_lugar_url:foto_lugar_url||null,foto_lugar_path:foto_lugar_path||null,...(selCatH==='gasolina'?getGasData('gh'):{}),...(selCatH==='seguros'?{tipo_seguro:getTipoSeguroData('gh')}:{}),...(selCatH==='ocio'?{tipo_bebida:getBebidaData('gh')}:{}),...(selCatH==='ajustes'?{socio_relacionado:getAjusteData('gh-ajuste-select')}:{}),...(kmVal?{km_actual:kmVal,km_vehiculo:selKmVeh}:{}),...(quienVal===BANCO_ID?{registrado_por:currentUser.id}:{registrado_por:null}),timestamp:Date.now()};
     let finalGastoId=editGHId;
     if(editGHId){
       // Si la fecha cambia de mes, mover a nuevo mes
@@ -2889,27 +2889,14 @@ function loadBebidaSel(prefix,tipo){
 }
 
 // ══ AJUSTES (reembolsos/devoluciones entre socios) ══
-let selAjuste={};
-function buildAjustePicker(cid,prefix){
-  const el=document.getElementById(cid);if(!el)return;
+function buildAjustePicker(selId){
+  const el=document.getElementById(selId);if(!el)return;
   const opts=FAMILY.filter(f=>f.id!==BANCO_ID);
-  el.innerHTML=opts.map(f=>`<button type="button" class="gas-veh" data-id="${f.id}" style="flex:none;padding:8px 14px" onclick="selectAjuste('${prefix}','${f.id}',this)">${esc(f.name)}</button>`).join('');
+  el.innerHTML='<option value="">Selecciona un socio...</option>'+opts.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join('');
 }
-function selectAjuste(prefix,socioId,btn){
-  selAjuste[prefix]=socioId;
-  document.querySelectorAll(`#${prefix}-ajuste-picker .gas-veh`).forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-}
-function getAjusteData(prefix){return selAjuste[prefix]||null;}
-function resetAjusteSel(prefix){
-  selAjuste[prefix]=null;
-  document.querySelectorAll(`#${prefix}-ajuste-picker .gas-veh`).forEach(b=>b.classList.remove('active'));
-}
-function loadAjusteSel(prefix,socioId){
-  if(!socioId)return;
-  selAjuste[prefix]=socioId;
-  document.querySelectorAll(`#${prefix}-ajuste-picker .gas-veh`).forEach(b=>b.classList.toggle('active',b.dataset.id===socioId));
-}
+function getAjusteData(selId){return document.getElementById(selId)?.value||null;}
+function resetAjusteSel(selId){const el=document.getElementById(selId);if(el)el.value='';}
+function loadAjusteSel(selId,socioId){const el=document.getElementById(selId);if(el)el.value=socioId||'';}
 
 let catFiltro='mes';
 let currentCatId=null;
@@ -3529,7 +3516,7 @@ async function openGVModal(editId){
   }
   buildCatPicker('gv-cat',CAT_VIAJE,'v');rmPhoto('gv');
   document.getElementById('gv-quien').innerHTML=(isTesorero()?FAMILY:FAMILY.filter(f=>f.id!==BANCO_ID)).map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
-  buildAjustePicker('gv-ajuste-picker','gv');
+  buildAjustePicker('gv-ajuste-select');
   if(editId&&viajesData[editId]){
     const g=viajesData[editId];
     document.getElementById('gv-imp').value=g.importe;
@@ -3539,8 +3526,8 @@ async function openGVModal(editId){
     document.getElementById('gv-quien').value=g.quien||currentUser?.id;
     selCatV=g.categoria||'cuota_socio';
     if(g.foto_url)loadExistingPhoto('gv',g.foto_url,g.foto_path||null);
-    resetAjusteSel('gv');
-    if(g.socio_relacionado)loadAjusteSel('gv',g.socio_relacionado);
+    resetAjusteSel('gv-ajuste-select');
+    if(g.socio_relacionado)loadAjusteSel('gv-ajuste-select',g.socio_relacionado);
   }else{
     document.getElementById('gv-imp').value='';
     document.getElementById('gv-desc').value='';
@@ -3548,7 +3535,7 @@ async function openGVModal(editId){
     document.getElementById('gv-fecha').value=todayISO();
     document.getElementById('gv-quien').value=currentUser?.id||'';
     selCatV='cuota_socio';
-    resetAjusteSel('gv');
+    resetAjusteSel('gv-ajuste-select');
   }
   const ajusteSecV=document.getElementById('gv-ajuste-section');
   if(ajusteSecV)ajusteSecV.style.display=selCatV==='otros'?'':'none';
@@ -3560,7 +3547,7 @@ async function saveGastoViaje(){
   if(!importe||importe<=0){toast('⚠️ Introduce un importe válido');return;}
   if(!document.getElementById('gv-quien').value){toast('⚠️ No se ha podido cargar la lista de socios, cierra y vuelve a abrir el formulario');return;}
   if(document.getElementById('gv-quien').value===BANCO_ID&&!isTesorero()){toast('❌ Solo los tesoreros pueden usar "Peña (banco)"');return;}
-  if(selCatV==='otros'&&!getAjusteData('gv')){toast('⚠️ Elige de quién es esta devolución');return;}
+  if(selCatV==='otros'&&!getAjusteData('gv-ajuste-select')){toast('⚠️ Elige de quién es esta devolución');return;}
   setUploading('gv',true);
   try{
     let foto_url=existUrl.gv||null,foto_path=existPath.gv||null;
@@ -3571,7 +3558,7 @@ async function saveGastoViaje(){
       foto_url=res.url;foto_path=res.path;
     }
     const quienVal=document.getElementById('gv-quien').value;
-    const data={importe,categoria:selCatV,descripcion:document.getElementById('gv-desc').value.trim(),nota:document.getElementById('gv-nota').value.trim()||null,fecha:document.getElementById('gv-fecha').value||todayISO(),quien:quienVal,foto_url:foto_url||null,foto_path:foto_path||null,...(selCatV==='otros'?{socio_relacionado:getAjusteData('gv')}:{}),registrado_por:quienVal===BANCO_ID?currentUser.id:null,timestamp:Date.now()};
+    const data={importe,categoria:selCatV,descripcion:document.getElementById('gv-desc').value.trim(),nota:document.getElementById('gv-nota').value.trim()||null,fecha:document.getElementById('gv-fecha').value||todayISO(),quien:quienVal,foto_url:foto_url||null,foto_path:foto_path||null,...(selCatV==='otros'?{socio_relacionado:getAjusteData('gv-ajuste-select')}:{}),registrado_por:quienVal===BANCO_ID?currentUser.id:null,timestamp:Date.now()};
     if(editGVId){await dbUpd(`ingresos/${mes}/${editGVId}`,data);toast('✅ Ingreso actualizado');}
     else{await dbPush(`ingresos/${mes}`,data);toast('✅ Ingreso añadido');}
     closeModal('modal-gv');
@@ -3612,9 +3599,9 @@ function selectCat(cid,catId,type){
     const ajusteSecH=document.getElementById('gh-ajuste-section');
     if(ajusteSecH){
       ajusteSecH.style.display=catId==='ajustes'?'':'none';
-      if(catId==='ajustes')buildAjustePicker('gh-ajuste-picker','gh');
+      if(catId==='ajustes')buildAjustePicker('gh-ajuste-select');
     }
-    if(catId!=='ajustes')resetAjusteSel('gh');
+    if(catId!=='ajustes')resetAjusteSel('gh-ajuste-select');
     const gasSecH=document.getElementById('gh-gasolina-section');
     if(gasSecH)gasSecH.style.display=catId==='gasolina'?'':'none';
     if(catId!=='gasolina')resetGasFields('gh');
@@ -3635,9 +3622,9 @@ function selectCat(cid,catId,type){
       const ajusteSecV=document.getElementById('gv-ajuste-section');
       if(ajusteSecV){
         ajusteSecV.style.display=catId==='otros'?'':'none';
-        if(catId==='otros')buildAjustePicker('gv-ajuste-picker','gv');
+        if(catId==='otros')buildAjustePicker('gv-ajuste-select');
       }
-      if(catId!=='otros')resetAjusteSel('gv');
+      if(catId!=='otros')resetAjusteSel('gv-ajuste-select');
     }
   }
   if(type!=='v')checkBudgetWarn();
