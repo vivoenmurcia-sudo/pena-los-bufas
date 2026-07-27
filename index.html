@@ -634,15 +634,36 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
 
     <!-- BALANCE -->
     <div id="sec-balance" class="section">
-      <div id="balance-content"></div>
-      <div class="card">
-        <div class="card-title">🔎 Balance por franja de fechas</div>
-        <div class="frow">
-          <div class="fg"><label class="flabel">Desde</label><input type="date" class="finput" id="bal-rango-start"></div>
-          <div class="fg"><label class="flabel">Hasta</label><input type="date" class="finput" id="bal-rango-end"></div>
+      <div class="sub-nav" id="balance-subnav">
+        <button class="sub-pill active" onclick="switchBalanceSub('resumen',this)">📊 Resumen</button>
+        <button class="sub-pill" onclick="switchBalanceSub('ajustes',this)">⚖️ Ajustes por socio</button>
+        <button class="sub-pill" onclick="switchBalanceSub('historico',this)">🧾 Histórico</button>
+      </div>
+      <div id="balance-resumen">
+        <div id="balance-content"></div>
+        <div class="card">
+          <div class="card-title">🔎 Balance por franja de fechas</div>
+          <div class="frow">
+            <div class="fg"><label class="flabel">Desde</label><input type="date" class="finput" id="bal-rango-start"></div>
+            <div class="fg"><label class="flabel">Hasta</label><input type="date" class="finput" id="bal-rango-end"></div>
+          </div>
+          <button class="btn btn-vp" style="width:100%;margin-bottom:.5rem" onclick="calcBalanceRango()">Calcular 🔎</button>
+          <div id="bal-rango-result"></div>
         </div>
-        <button class="btn btn-vp" style="width:100%;margin-bottom:.5rem" onclick="calcBalanceRango()">Calcular 🔎</button>
-        <div id="bal-rango-result"></div>
+      </div>
+      <div id="balance-ajustes" style="display:none">
+        <div id="balance-ajustes-content"></div>
+      </div>
+      <div id="balance-historico" style="display:none">
+        <div class="search-bar">
+          <input type="text" class="search-input" id="hist-search" placeholder="Buscar..." oninput="renderHistorico()">
+          <select class="sort-select" id="hist-tipo" onchange="renderHistorico()">
+            <option value="todos">Todos</option>
+            <option value="gasto">Solo gastos</option>
+            <option value="ingreso">Solo ingresos</option>
+          </select>
+        </div>
+        <div id="balance-historico-content"></div>
       </div>
     </div>
 
@@ -1490,8 +1511,18 @@ function switchMain(tab,btn){
     renderSociosList();
     const nameEl=document.getElementById('soc-my-name');if(nameEl)nameEl.value=currentUser?.name||'';
   }
-  if(tab==='balance')loadBalance();
+  if(tab==='balance'){balanceSub='resumen';loadBalance();}
   updateFab();
+}
+let balanceSub='resumen';
+function switchBalanceSub(sub,btn){
+  balanceSub=sub;
+  document.querySelectorAll('#balance-subnav .sub-pill').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');
+  document.getElementById('balance-resumen').style.display=sub==='resumen'?'':'none';
+  document.getElementById('balance-ajustes').style.display=sub==='ajustes'?'':'none';
+  document.getElementById('balance-historico').style.display=sub==='historico'?'':'none';
+  if(sub==='ajustes')renderAjustesPorSocio();
+  if(sub==='historico')renderHistorico();
 }
 function switchHogarSub(sub,btn){
   hogarSub=sub;
@@ -3260,7 +3291,7 @@ function goToMonthIng(num){
 // ══ BALANCE (acumulado anual / total) ══
 const FOUNDING_YEAR=2025; // primer año con datos posibles; ajusta si hace falta
 let chartBalanceYears=null;
-let lastBalanceAnual=null,lastBalRango=null,lastIngRango=null;
+let lastBalanceAnual=null,lastBalRango=null,lastIngRango=null,lastAjustesPorSocio=null,lastHistorico=null;
 async function loadBalance(){
   const el=document.getElementById('balance-content');
   el.innerHTML=`<div class="anual-loading"><div class="spinner" style="margin:0 auto 8px"></div>Calculando balance...</div>`;
@@ -3268,7 +3299,7 @@ async function loadBalance(){
   const years=[];
   for(let y=FOUNDING_YEAR;y<=thisYear;y++)years.push(y);
 
-  const gastosPorCat={},ingresosPorCat={};
+  const gastosPorCat={},ingresosPorCat={},porSocioAportado={},porSocioDevuelto={},allMovimientos=[];
   const yearResults=await Promise.all(years.map(async y=>{
     const monthKeys=Array.from({length:12},(_,i)=>`${y}-${pad(i+1)}`);
     const months=await Promise.all(monthKeys.map(k=>Promise.all([dbGet(`gastos_hogar/${k}`),dbGet(`ingresos/${k}`)])));
@@ -3277,10 +3308,18 @@ async function loadBalance(){
       Object.values(g||{}).forEach(x=>{
         const imp=parseFloat(x.importe||0);gastos+=imp;
         gastosPorCat[x.categoria]=(gastosPorCat[x.categoria]||0)+imp;
+        if(x.categoria==='ajustes'&&x.socio_relacionado){
+          porSocioDevuelto[x.socio_relacionado]=(porSocioDevuelto[x.socio_relacionado]||0)+imp;
+        }
+        allMovimientos.push({tipo:'gasto',...x});
       });
       Object.values(i||{}).forEach(x=>{
         const imp=parseFloat(x.importe||0);ingresos+=imp;
         ingresosPorCat[x.categoria]=(ingresosPorCat[x.categoria]||0)+imp;
+        if(x.categoria==='otros'&&x.socio_relacionado){
+          porSocioAportado[x.socio_relacionado]=(porSocioAportado[x.socio_relacionado]||0)+imp;
+        }
+        allMovimientos.push({tipo:'ingreso',...x});
       });
     });
     return{year:y,gastos,ingresos,balance:ingresos-gastos};
@@ -3292,7 +3331,8 @@ async function loadBalance(){
   const isPos=totalBalance>=0;
   const gastosCatData=Object.entries(gastosPorCat).map(([id,spent])=>({...getCatAll(id),spent})).sort((a,b)=>b.spent-a.spent);
   const ingresosCatData=Object.entries(ingresosPorCat).map(([id,spent])=>({...getCat(CAT_VIAJE,id),spent})).sort((a,b)=>b.spent-a.spent);
-  lastBalanceAnual={yearResults,totalGastos,totalIngresos,totalBalance,gastosCatData,ingresosCatData};
+  allMovimientos.sort((a,b)=>(b.fecha||'')>(a.fecha||'')?1:-1);
+  lastBalanceAnual={yearResults,totalGastos,totalIngresos,totalBalance,gastosCatData,ingresosCatData,porSocioAportado,porSocioDevuelto,allMovimientos};
 
   let html=`<div class="anual-total-card" style="background:${isPos?'linear-gradient(135deg,#14532d,#166534)':'linear-gradient(135deg,#7f1d1d,#991b1b)'}">
     <div class="anual-total-lbl">⚖️ Balance total acumulado</div>
@@ -3329,6 +3369,105 @@ async function loadBalance(){
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:11,weight:'bold'},boxWidth:12,padding:10}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>v+'€',font:{size:10}},grid:{color:'#f1f5f9'}},x:{grid:{display:false},ticks:{font:{size:11,weight:'bold'}}}}}
     });
   }
+}
+
+async function renderAjustesPorSocio(){
+  const el=document.getElementById('balance-ajustes-content');
+  el.innerHTML=`<div class="anual-loading"><div class="spinner" style="margin:0 auto 8px"></div>Calculando...</div>`;
+  if(!lastBalanceAnual)await loadBalance();
+  const {porSocioAportado,porSocioDevuelto}=lastBalanceAnual;
+  const socios=FAMILY.filter(f=>f.id!==BANCO_ID);
+  const filas=socios.map(f=>{
+    const aportado=porSocioAportado[f.id]||0;
+    const devuelto=porSocioDevuelto[f.id]||0;
+    const pendiente=aportado-devuelto;
+    return{...f,aportado,devuelto,pendiente};
+  }).filter(f=>f.aportado>0||f.devuelto>0).sort((a,b)=>b.pendiente-a.pendiente);
+  lastAjustesPorSocio=filas;
+
+  if(!filas.length){
+    el.innerHTML=`<div class="empty" style="padding:1.5rem"><div class="ei">⚖️</div><div class="et">Todavía no hay aportaciones registradas por nadie</div></div>`;
+    return;
+  }
+
+  el.innerHTML=`<button class="export-btn" style="margin-bottom:.6rem" onclick="exportAjustesPorSocioPDF()">📄 Exportar en PDF</button>`
+  +filas.map(f=>{
+    const pos=f.pendiente>0.004; // pendiente real (evita ruido de decimales)
+    const saldado=Math.abs(f.pendiente)<=0.004;
+    return`<div class="card" style="margin-bottom:.6rem;padding:.85rem 1rem">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <div class="user-avatar ${f.avClass}" style="width:36px;height:36px;font-size:12px">${f.letter}</div>
+        <div style="flex:1">
+          <div style="font-size:.92rem;font-weight:800">${esc(f.name)}</div>
+          <div style="font-size:.72rem;color:#94a3b8">Aportado ${fmtEur(f.aportado)} · Devuelto ${fmtEur(f.devuelto)}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:1.05rem;font-weight:900;color:${saldado?'#94a3b8':pos?'#ef4444':'#16a34a'}">${saldado?'Saldado ✅':fmtEur(Math.abs(f.pendiente))}</div>
+          ${!saldado?`<div style="font-size:.65rem;color:#94a3b8;font-weight:700">${pos?'se le debe':'debe a la Peña'}</div>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function exportAjustesPorSocioPDF(){
+  if(!lastAjustesPorSocio)return;
+  const rowsHtml=lastAjustesPorSocio.map(f=>{
+    const saldado=Math.abs(f.pendiente)<=0.004;
+    const estado=saldado?'Saldado':(f.pendiente>0?'Se le debe':'Debe a la Peña');
+    return`<tr><td>${esc(f.name)}</td><td class="num">${fmtEur(f.aportado)}</td><td class="num">${fmtEur(f.devuelto)}</td><td class="num" style="color:${saldado?'#94a3b8':f.pendiente>0?'#ef4444':'#16a34a'}">${fmtEur(Math.abs(f.pendiente))} · ${estado}</td></tr>`;
+  }).join('');
+  const w=window.open('','_blank');
+  w.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Ajustes por socio · PEÑA LOS BUFAS</title>'
+  +'<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#0f172a;padding:2rem;max-width:800px;margin:0 auto;font-size:14px}'
+  +'h1{font-size:1.8rem;font-weight:900;margin-bottom:.2rem}.sub{color:#64748b;margin-bottom:1.5rem;font-size:.85rem}'
+  +'.print-btn{padding:10px 20px;background:#0891b2;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:700;margin-bottom:1.5rem}'
+  +'table{width:100%;border-collapse:collapse}th{background:#ecfeff;padding:.55rem .75rem;text-align:left;font-size:.7rem;text-transform:uppercase;color:#0e7490}'
+  +'td{padding:.6rem .75rem;border-bottom:1px solid #f1f5f9;font-size:.9rem}.num{text-align:right;font-weight:700}'
+  +'@media print{.print-btn{display:none}}</style></head><body>'
+  +'<button class="print-btn" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>'
+  +'<h1>⚖️ Ajustes por socio</h1>'
+  +'<div class="sub">💰 PEÑA LOS BUFAS · Exportado el '+new Date().toLocaleDateString('es-ES')+'</div>'
+  +'<table><thead><tr><th>Socio</th><th>Aportado</th><th>Devuelto</th><th>Pendiente</th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'
+  +'</body></html>');
+  w.document.close();
+}
+
+async function renderHistorico(){
+  const el=document.getElementById('balance-historico-content');
+  el.innerHTML=`<div class="anual-loading"><div class="spinner" style="margin:0 auto 8px"></div>Cargando histórico...</div>`;
+  if(!lastBalanceAnual)await loadBalance();
+  const search=normalizeText(document.getElementById('hist-search')?.value||'');
+  const tipoFiltro=document.getElementById('hist-tipo')?.value||'todos';
+  let movs=lastBalanceAnual.allMovimientos;
+  if(tipoFiltro!=='todos')movs=movs.filter(m=>m.tipo===tipoFiltro);
+  if(search){
+    movs=movs.filter(m=>{
+      const cat=m.tipo==='gasto'?getCatAll(m.categoria):getCat(CAT_VIAJE,m.categoria);
+      const quien=FAMILY.find(f=>f.id===(m.quien||m.quien_pago))?.name||'';
+      return normalizeText(m.descripcion).includes(search)||normalizeText(cat.label).includes(search)||normalizeText(quien).includes(search);
+    });
+  }
+  lastHistorico=movs;
+  if(!movs.length){
+    el.innerHTML=`<div class="empty" style="padding:1.5rem"><div class="ei">🧾</div><div class="et">Sin movimientos${search?' para esa búsqueda':''}</div></div>`;
+    return;
+  }
+  el.innerHTML='<div class="gasto-list">'+movs.map(m=>{
+    const esGasto=m.tipo==='gasto';
+    const cat=esGasto?getCatAll(m.categoria):getCat(CAT_VIAJE,m.categoria);
+    const quien=quienLabel(m);
+    return`<div class="gasto-item" style="border-left:4px solid ${cat.color}">
+      <div class="gcat-icon" style="background:${cat.color}20">${cat.icon}</div>
+      <div class="gasto-body">
+        <div class="gasto-desc">${esc(m.descripcion||cat.label)}</div>
+        <div class="gasto-meta">${cat.label}<span style="color:#e2e8f0">·</span>${quien}<span style="color:#e2e8f0">·</span>${fmtDate(m.fecha)}</div>
+      </div>
+      <div class="gasto-right">
+        <div class="gasto-importe" style="color:${esGasto?'#0f172a':'#16a34a'}">${esGasto?'':'+'}${fmtEur(m.importe)}</div>
+      </div>
+    </div>`;
+  }).join('')+'</div>';
 }
 
 function exportBalanceAnualPDF(){
