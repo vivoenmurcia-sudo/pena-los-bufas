@@ -613,7 +613,7 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
           <div class="chart-container-sm"><canvas id="chart-ing-bar"></canvas></div>
         </div>
         <div class="card">
-          <div class="card-title">🧑‍🤝‍🧑 Cuota Socio por persona (últimos 6 meses)</div>
+          <div class="card-title">👤 Cuota Socio por persona (últimos 6 meses)</div>
           <div id="ing-cuotas-6m"></div>
         </div>
         <div class="card">
@@ -1128,8 +1128,8 @@ const ALL_CATS=[...CAT_FIJOS,...CAT_HOGAR,...CAT_LEGACY];
 function getCatAll(id){return ALL_CATS.find(c=>c.id===id)||CAT_HOGAR[CAT_HOGAR.length-1];}
 
 const CAT_VIAJE=[
-  {id:'cuota_socio', icon:'🧑‍🤝‍🧑',label:'Cuota Socio',       color:'#0ea5e9'},
-  {id:'cuota_amigo', icon:'🙋',label:'Cuota Amigo',        color:'#16a34a'},
+  {id:'cuota_socio', icon:'👤',label:'Cuota Socio',       color:'#0ea5e9'},
+  {id:'cuota_amigo', icon:'🧒',label:'Cuota Amigo',        color:'#16a34a'},
   {id:'subvenciones',icon:'🫙',label:'Bote', color:'#8b5cf6'},
   {id:'otros',       icon:'💶',label:'Otros',              color:'#94a3b8'},
 ];
@@ -3343,7 +3343,7 @@ function exportCuotasPorSocioPDF(elId){
   +'.tr{background:#f8fafc;font-weight:900}.tr td{padding:.65rem .75rem}'
   +'@media print{.print-btn{display:none}}</style></head><body>'
   +'<button class="print-btn" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>'
-  +'<h1>🧑\u200d🤝\u200d🧑 '+esc(cache.titulo)+'</h1>'
+  +'<h1>👤 '+esc(cache.titulo)+'</h1>'
   +'<div class="sub">💰 PEÑA LOS BUFAS · Exportado el '+new Date().toLocaleDateString('es-ES')+'</div>'
   +'<table><thead><tr><th>Socio</th><th>Aportado</th></tr></thead><tbody>'+rowsHtml+'</tbody><tfoot><tr class="tr"><td>TOTAL</td><td class="num">'+fmtEur(total)+'</td></tr></tfoot></table>'
   +'</body></html>');
@@ -3392,7 +3392,7 @@ async function loadAnualIng(){
     }
   }));
   html+=`<div class="card" style="margin-top:.85rem">
-    <div class="card-title">🧑‍🤝‍🧑 Cuota Socio por persona (${currentYear})</div>
+    <div class="card-title">👤 Cuota Socio por persona (${currentYear})</div>
     <div id="ing-cuotas-anual"></div>
   </div>`;
   el.innerHTML=html;
@@ -3910,7 +3910,7 @@ async function openGVModal(editId){
   const needsAjusteV=selCatV==='otros'||selCatV==='cuota_socio';
   if(ajusteSecV)ajusteSecV.style.display=needsAjusteV?'':'none';
   const ajusteLblV=document.getElementById('gv-ajuste-lbl');
-  if(ajusteLblV)ajusteLblV.textContent=selCatV==='cuota_socio'?'🧑\u200d🤝\u200d🧑 ¿Qué socio paga esta cuota?':'⚖️ Aportación de...';
+  if(ajusteLblV)ajusteLblV.textContent=selCatV==='cuota_socio'?'👤 ¿Qué socio paga esta cuota?':'⚖️ Aportación de...';
   highlightCat('gv-cat',selCatV,'v');openModal('modal-gv');
 }
 
@@ -4002,7 +4002,7 @@ function selectCat(cid,catId,type){
         if(needsAjusteV)buildAjustePicker('gv-ajuste-select');
       }
       const ajusteLblV=document.getElementById('gv-ajuste-lbl');
-      if(ajusteLblV)ajusteLblV.textContent=catId==='cuota_socio'?'🧑\u200d🤝\u200d🧑 ¿Qué socio paga esta cuota?':'⚖️ Aportación de...';
+      if(ajusteLblV)ajusteLblV.textContent=catId==='cuota_socio'?'👤 ¿Qué socio paga esta cuota?':'⚖️ Aportación de...';
       if(!needsAjusteV)resetAjusteSel('gv-ajuste-select');
     }
   }
