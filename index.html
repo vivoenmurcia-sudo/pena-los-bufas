@@ -484,14 +484,14 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
     </div>
   </div>
   <div class="main-nav">
-    <button class="main-tab active" id="btn-tab-hogar" onclick="switchMain('hogar',this)"><span class="tab-icon">💳</span><span>GASTOS</span></button>
-    <button class="main-tab v-tab" id="btn-tab-viajes" onclick="switchMain('viajes',this)"><span class="tab-icon">💰</span><span>INGRESOS</span></button>
     <button class="main-tab" id="btn-tab-balance" onclick="switchMain('balance',this)"><span class="tab-icon">⚖️</span><span>BALANCE</span></button>
+    <button class="main-tab" id="btn-tab-hogar" onclick="switchMain('hogar',this)"><span class="tab-icon">💳</span><span>GASTOS</span></button>
+    <button class="main-tab v-tab" id="btn-tab-viajes" onclick="switchMain('viajes',this)"><span class="tab-icon">💰</span><span>INGRESOS</span></button>
   </div>
 
   <div class="container">
     <!-- HOGAR -->
-    <div id="sec-hogar" class="section active">
+    <div id="sec-hogar" class="section">
       <div class="hero-card">
         <div class="hero-month-lbl" id="hero-month-lbl">—</div>
         <div style="font-size:.6rem;opacity:.5;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:1px">Gastos variables</div>
@@ -637,7 +637,7 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
     </div>
 
     <!-- BALANCE -->
-    <div id="sec-balance" class="section">
+    <div id="sec-balance" class="section active">
       <div class="sub-nav" id="balance-subnav">
         <button class="sub-pill active" onclick="switchBalanceSub('resumen',this)">📊 Resumen</button>
         <button class="sub-pill" onclick="switchBalanceSub('ajustes',this)">⚖️ Ajustes por socio</button>
@@ -1176,7 +1176,7 @@ function destTheme(nombre='',destino=''){
 
 // ══ STATE ══
 let currentUser=null,currentRole=null;
-let mainTab='hogar',hogarSub='gastos',ingSub='movimientos';
+let mainTab='balance',hogarSub='gastos',ingSub='movimientos';
 let currentYear=new Date().getFullYear();
 let currentMonthNum=new Date().getMonth()+1;
 let get_currentMonth=()=>`${currentYear}-${pad(currentMonthNum)}`;
@@ -1470,7 +1470,9 @@ function showApp(p){
   document.getElementById('btn-presupuestos').style.display=p.role==='admin'?'':'none';
   document.getElementById('soc-invite-card').style.display=p.email===OWNER_EMAIL?'':'none';
   buildYearSelect();buildMonthPills();
+  document.getElementById('btn-tab-balance').classList.add('active');
   startLsn();updateFab();
+  loadBalance();
 }
 
 // ══ YEAR / MONTH SELECTOR ══
