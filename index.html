@@ -672,7 +672,19 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
       </div>
       <div id="balance-auditoria" style="display:none">
         <div class="empty" style="padding:.75rem 1rem;background:#fff7ed;border-radius:12px;margin-bottom:.75rem">
-          <div style="font-size:.78rem;color:#9a3412;text-align:left">🔒 Registro permanente: aquí queda constancia de todo lo que se ha editado o borrado, aunque ya no aparezca en las cuentas. Nadie puede eliminar estas entradas desde la app.</div>
+          <div style="font-size:.78rem;color:#9a3412;text-align:left">🔒 Registro permanente: aquí queda constancia de cada gasto/ingreso creado, editado o borrado, aunque ya no aparezca en las cuentas. Nadie puede eliminar estas entradas desde la app.</div>
+        </div>
+        <div class="card" style="margin-bottom:.75rem">
+          <div class="frow">
+            <div class="fg"><label class="flabel">Desde</label><input type="date" class="finput" id="audit-start" onchange="renderAuditoria()"></div>
+            <div class="fg"><label class="flabel">Hasta</label><input type="date" class="finput" id="audit-end" onchange="renderAuditoria()"></div>
+          </div>
+          <select class="sort-select" id="audit-accion" onchange="renderAuditoria()" style="width:100%">
+            <option value="todas">Todas las acciones</option>
+            <option value="creado">Solo creados</option>
+            <option value="editado">Solo editados</option>
+            <option value="eliminado">Solo eliminados</option>
+          </select>
         </div>
         <div id="balance-auditoria-content"></div>
       </div>
@@ -2371,6 +2383,7 @@ async function saveGastoHogar(){
       }
     }else{
       finalGastoId=await dbPush(`gastos_hogar/${mesGasto}`,data);
+      await logAuditoria('gasto','creado',null,data);
       if(mesGasto!==mesActual){
         toast('✅ Gasto añadido en '+fmtMon(mesGasto));
       }else{
@@ -2394,6 +2407,7 @@ async function logAuditoria(tipo,accion,datosAntes,datosDespues){
       quien_lo_hizo:currentUser?.id||null,
       fecha_accion:Date.now()
     });
+    allAuditoria=null; // invalidar caché para que se recargue la próxima vez que se abra Auditoría
   }catch(e){console.error('No se pudo registrar en el historial de auditoría:',e);}
 }
 
@@ -3406,7 +3420,7 @@ function goToMonthIng(num){
 // ══ BALANCE (acumulado anual / total) ══
 const FOUNDING_YEAR=2025; // primer año con datos posibles; ajusta si hace falta
 let chartBalanceYears=null;
-let lastBalanceAnual=null,lastBalRango=null,lastIngRango=null,lastAjustesPorSocio=null,lastHistorico=null,lastAuditoria=null;
+let lastBalanceAnual=null,lastBalRango=null,lastIngRango=null,lastAjustesPorSocio=null,lastHistorico=null,lastAuditoria=null,allAuditoria=null;
 async function loadBalance(){
   const el=document.getElementById('balance-content');
   el.innerHTML=`<div class="anual-loading"><div class="spinner" style="margin:0 auto 8px"></div>Calculando balance...</div>`;
@@ -3632,36 +3646,46 @@ function resumenSnapshot(tipo,snap){
 async function renderAuditoria(){
   const el=document.getElementById('balance-auditoria-content');
   el.innerHTML=`<div class="anual-loading"><div class="spinner" style="margin:0 auto 8px"></div>Cargando auditoría...</div>`;
-  const thisYear=new Date().getFullYear();
-  const years=[];
-  for(let y=FOUNDING_YEAR;y<=thisYear;y++)years.push(y);
-  const monthKeys=[];
-  years.forEach(y=>{for(let m=1;m<=12;m++)monthKeys.push(`${y}-${pad(m)}`);});
-  const results=await Promise.all(monthKeys.map(k=>dbGet(`auditoria/${k}`)));
-  let entradas=[];
-  results.forEach(data=>{
-    Object.values(data||{}).forEach(e=>entradas.push(e));
-  });
-  entradas.sort((a,b)=>(b.fecha_accion||0)-(a.fecha_accion||0));
+  if(!allAuditoria){
+    const thisYear=new Date().getFullYear();
+    const years=[];
+    for(let y=FOUNDING_YEAR;y<=thisYear;y++)years.push(y);
+    const monthKeys=[];
+    years.forEach(y=>{for(let m=1;m<=12;m++)monthKeys.push(`${y}-${pad(m)}`);});
+    const results=await Promise.all(monthKeys.map(k=>dbGet(`auditoria/${k}`)));
+    allAuditoria=[];
+    results.forEach(data=>{
+      Object.values(data||{}).forEach(e=>allAuditoria.push(e));
+    });
+    allAuditoria.sort((a,b)=>(b.fecha_accion||0)-(a.fecha_accion||0));
+  }
+  const start=document.getElementById('audit-start')?.value||'';
+  const end=document.getElementById('audit-end')?.value||'';
+  const accionFiltro=document.getElementById('audit-accion')?.value||'todas';
+  let entradas=allAuditoria;
+  if(accionFiltro!=='todas')entradas=entradas.filter(e=>e.accion===accionFiltro);
+  if(start)entradas=entradas.filter(e=>{const d=new Date(e.fecha_accion).toISOString().substring(0,10);return d>=start;});
+  if(end)entradas=entradas.filter(e=>{const d=new Date(e.fecha_accion).toISOString().substring(0,10);return d<=end;});
 
   if(!entradas.length){
-    el.innerHTML=`<div class="empty" style="padding:1.5rem"><div class="ei">🗂️</div><div class="et">Sin ediciones ni borrados registrados todavía</div></div>`;
+    const hayFiltro=start||end||accionFiltro!=='todas';
+    el.innerHTML=`<div class="empty" style="padding:1.5rem"><div class="ei">🗂️</div><div class="et">${hayFiltro?'Sin resultados para ese filtro':'Sin movimientos registrados todavía'}</div></div>`;
     return;
   }
   lastAuditoria=entradas;
 
   el.innerHTML=`<button class="export-btn" style="margin-bottom:.6rem" onclick="exportAuditoriaPDF()">📄 Exportar en PDF</button>`+entradas.map(e=>{
     const quien=FAMILY.find(f=>f.id===e.quien_lo_hizo)?.name||'?';
-    const esEliminado=e.accion==='eliminado';
+    const badge={creado:{bg:'#f0fdf4',fg:'#15803d',txt:'➕ Creado'},editado:{bg:'#fffbeb',fg:'#b45309',txt:'✏️ Editado'},eliminado:{bg:'#fef2f2',fg:'#b91c1c',txt:'🗑️ Eliminado'}}[e.accion]||{bg:'#f1f5f9',fg:'#64748b',txt:e.accion};
     return`<div class="card" style="margin-bottom:.6rem;padding:.8rem 1rem">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span style="font-size:.68rem;font-weight:800;padding:2px 9px;border-radius:20px;background:${esEliminado?'#fef2f2':'#fffbeb'};color:${esEliminado?'#b91c1c':'#b45309'}">${esEliminado?'🗑️ Eliminado':'✏️ Editado'} · ${e.tipo==='gasto'?'Gasto':'Ingreso'}</span>
+        <span style="font-size:.68rem;font-weight:800;padding:2px 9px;border-radius:20px;background:${badge.bg};color:${badge.fg}">${badge.txt} · ${e.tipo==='gasto'?'Gasto':'Ingreso'}</span>
         <span style="font-size:.68rem;color:#94a3b8">${fmtFechaHora(e.fecha_accion)}</span>
       </div>
-      ${esEliminado
-        ?`<div style="font-size:.85rem">${resumenSnapshot(e.tipo,e.datos_antes)}</div>`
-        :`<div style="font-size:.8rem;color:#94a3b8;text-decoration:line-through">${resumenSnapshot(e.tipo,e.datos_antes)}</div>
-          <div style="font-size:.85rem;margin-top:2px">→ ${resumenSnapshot(e.tipo,e.datos_despues)}</div>`}
+      ${e.accion==='editado'
+        ?`<div style="font-size:.8rem;color:#94a3b8;text-decoration:line-through">${resumenSnapshot(e.tipo,e.datos_antes)}</div>
+          <div style="font-size:.85rem;margin-top:2px">→ ${resumenSnapshot(e.tipo,e.datos_despues)}</div>`
+        :`<div style="font-size:.85rem">${resumenSnapshot(e.tipo,e.accion==='creado'?e.datos_despues:e.datos_antes)}</div>`}
       <div style="font-size:.68rem;color:#94a3b8;margin-top:6px">Por: ${esc(quien)}</div>
     </div>`;
   }).join('');
@@ -3671,9 +3695,9 @@ function exportAuditoriaPDF(){
   if(!lastAuditoria)return;
   const rowsHtml=lastAuditoria.map(e=>{
     const quien=FAMILY.find(f=>f.id===e.quien_lo_hizo)?.name||'?';
-    const esEliminado=e.accion==='eliminado';
-    const detalle=esEliminado?resumenSnapshot(e.tipo,e.datos_antes):(resumenSnapshot(e.tipo,e.datos_antes)+' → '+resumenSnapshot(e.tipo,e.datos_despues));
-    return`<tr><td>${fmtFechaHora(e.fecha_accion)}</td><td>${esEliminado?'Eliminado':'Editado'}</td><td>${e.tipo==='gasto'?'Gasto':'Ingreso'}</td><td>${detalle}</td><td>${esc(quien)}</td></tr>`;
+    const accionTxt={creado:'Creado',editado:'Editado',eliminado:'Eliminado'}[e.accion]||e.accion;
+    const detalle=e.accion==='editado'?(resumenSnapshot(e.tipo,e.datos_antes)+' → '+resumenSnapshot(e.tipo,e.datos_despues)):resumenSnapshot(e.tipo,e.accion==='creado'?e.datos_despues:e.datos_antes);
+    return`<tr><td>${fmtFechaHora(e.fecha_accion)}</td><td>${accionTxt}</td><td>${e.tipo==='gasto'?'Gasto':'Ingreso'}</td><td>${detalle}</td><td>${esc(quien)}</td></tr>`;
   }).join('');
   const w=window.open('','_blank');
   w.document.write('<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Auditoría · PEÑA LOS BUFAS</title>'
@@ -3935,7 +3959,7 @@ async function saveGastoViaje(){
       await logAuditoria('ingreso','editado',viajesData[editGVId]||null,data);
       await dbUpd(`ingresos/${mes}/${editGVId}`,data);toast('✅ Ingreso actualizado');
     }
-    else{await dbPush(`ingresos/${mes}`,data);toast('✅ Ingreso añadido');}
+    else{await dbPush(`ingresos/${mes}`,data);await logAuditoria('ingreso','creado',null,data);toast('✅ Ingreso añadido');}
     closeModal('modal-gv');
   }catch(e){console.error(e);toast('❌ Error al guardar');}
   finally{setUploading('gv',false);}
