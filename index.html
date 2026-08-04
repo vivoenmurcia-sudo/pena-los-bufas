@@ -707,6 +707,14 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
         <div class="soc-msg" id="soc-msg"></div>
         <button class="btn btn-vp" style="width:100%" onclick="addSocio()">Invitar socio 💾</button>
       </div>
+      <div class="card" style="margin-bottom:.85rem" id="soc-pendiente-card">
+        <div class="card-title">🧑 Crear perfil sin email</div>
+        <div style="font-size:.75rem;color:#94a3b8;margin-bottom:.6rem">Para socios que todavía no te han dado su email. Podrás asignarle gastos ya mismo, y cuando te pase el email, se lo vinculas y todo lo que tenga registrado pasa a ser suyo automáticamente.</div>
+        <div class="fg"><label class="flabel">Nombre</label>
+          <input type="text" class="finput" id="soc-pend-nombre" placeholder="Ej: Manolo, Antonia..."></div>
+        <div class="soc-msg" id="soc-pend-msg"></div>
+        <button class="btn btn-vp" style="width:100%" onclick="addSocioPendiente()">Crear perfil 💾</button>
+      </div>
       <div class="card">
         <div class="card-title">👥 Socios con acceso</div>
         <div id="socios-list"></div>
@@ -1442,9 +1450,18 @@ document.addEventListener('db-ready',()=>{
             await dbUpd(`socios/${key}`,{owner:true}).catch(()=>{});
           }
         }else{
-          const socio=await dbGet(`socios/${key}`);
+          let socio=await dbGet(`socios/${key}`);
+          let realKey=key;
+          if(!socio){
+            // No hay clave directa: puede ser un perfil creado sin email y vinculado después
+            const todos=await dbGet('socios');
+            if(todos){
+              const match=Object.entries(todos).find(([,v])=>v.email&&v.email.toLowerCase()===email);
+              if(match){realKey=match[0];socio=match[1];}
+            }
+          }
           if(!socio){document.getElementById('login-error').textContent=`Sin acceso: ${email}. Pide al administrador que te invite.`;window._signOut();return;}
-          p={id:key,email,name:socio.name||email.split('@')[0],role:'admin',avClass:avClassFor(email),letter:(socio.name||email)[0].toUpperCase(),tesorero:!!socio.tesorero};
+          p={id:realKey,email,name:socio.name||email.split('@')[0],role:'admin',avClass:avClassFor(email),letter:(socio.name||email)[0].toUpperCase(),tesorero:!!socio.tesorero};
         }
       }catch(e){
         console.error(e);
@@ -1469,6 +1486,7 @@ function showApp(p){
   document.getElementById('top-name').textContent=p.name;
   document.getElementById('btn-presupuestos').style.display=p.role==='admin'?'':'none';
   document.getElementById('soc-invite-card').style.display=p.email===OWNER_EMAIL?'':'none';
+  document.getElementById('soc-pendiente-card').style.display=isTesorero()?'':'none';
   buildYearSelect();buildMonthPills();
   document.getElementById('btn-tab-balance').classList.add('active');
   startLsn();updateFab();
@@ -2162,6 +2180,7 @@ async function renameMe(){
 function renderSociosList(){
   const el=document.getElementById('socios-list');
   const isOwner=currentUser?.email===OWNER_EMAIL;
+  const puedeGestionar=isTesorero(); // owner + tesoreros
   const list=Object.entries(sociosData).sort(([,a],[,b])=>(a.name||'').localeCompare(b.name||''));
   if(!list.length){el.innerHTML='<div class="empty" style="padding:1rem"><div class="et">Todavía no hay socios</div></div>';return;}
   el.innerHTML=list.map(([key,v])=>{
@@ -2169,15 +2188,16 @@ function renderSociosList(){
     return`<div class="person-row">
       <div class="person-row-left">
         <div class="user-avatar ${av}" style="width:34px;height:34px;font-size:11px">${letter}</div>
-        <div><div style="font-size:.85rem;font-weight:800">${esc(v.name||'Sin nombre')}${(isOwner&&v.owner)?' <span style="font-size:.65rem;color:#94a3b8;font-weight:600">· superusuario</span>':''}${(isOwner&&v.tesorero)?' <span style="font-size:.65rem;color:#a16207;font-weight:600">· 🔑 tesorero</span>':''}</div>
-        ${isOwner?`<div style="font-size:.72rem;color:#94a3b8">${esc(v.email||'')}</div>`:''}</div>
+        <div><div style="font-size:.85rem;font-weight:800">${esc(v.name||'Sin nombre')}${(isOwner&&v.owner)?' <span style="font-size:.65rem;color:#94a3b8;font-weight:600">· superusuario</span>':''}${(isOwner&&v.tesorero)?' <span style="font-size:.65rem;color:#a16207;font-weight:600">· 🔑 tesorero</span>':''}${v.pendiente?' <span style="font-size:.65rem;color:#c2410c;font-weight:700;background:#fff7ed;padding:1px 7px;border-radius:10px">⏳ sin email</span>':''}</div>
+        ${(isOwner&&v.email)?`<div style="font-size:.72rem;color:#94a3b8">${esc(v.email)}</div>`:''}</div>
       </div>
-      ${(isOwner&&!v.owner)?`<div style="display:flex;align-items:center;gap:8px">
-        <label style="display:flex;align-items:center;gap:4px;font-size:.68rem;color:#64748b;cursor:pointer;white-space:nowrap">
+      <div style="display:flex;align-items:center;gap:8px">
+        ${(puedeGestionar&&v.pendiente)?`<button class="btn-sm-vp" style="padding:5px 10px;font-size:.68rem" onclick="vincularEmailSocio('${key}','${esc(v.name||'')}')">🔗 Vincular email</button>`:''}
+        ${(isOwner&&!v.owner)?`<label style="display:flex;align-items:center;gap:4px;font-size:.68rem;color:#64748b;cursor:pointer;white-space:nowrap">
           <input type="checkbox" ${v.tesorero?'checked':''} onchange="toggleTesorero('${key}',${!!v.tesorero})" style="cursor:pointer">🔑 Tesorero
-        </label>
-        <button class="iBtn dl" onclick="delSocio('${key}','${esc(v.name||v.email||'')}')">🗑️</button>
-      </div>`:''}
+        </label>`:''}
+        ${(isOwner&&!v.owner)?`<button class="iBtn dl" onclick="delSocio('${key}','${esc(v.name||v.email||'')}')">🗑️</button>`:''}
+      </div>
     </div><div class="divider"></div>`;
   }).join('');
 }
@@ -2206,6 +2226,32 @@ async function addSocio(){
     msgEl.style.color='#16a34a';msgEl.textContent='✅ Socio invitado — ya puede entrar con Google';
     toast('✅ Socio añadido');
   }catch(e){console.error(e);msgEl.style.color='#ef4444';msgEl.textContent='❌ Error al guardar';}
+}
+
+async function addSocioPendiente(){
+  if(!isTesorero()){toast('❌ Solo el superusuario o un tesorero puede crear perfiles');return;}
+  const msgEl=document.getElementById('soc-pend-msg');
+  msgEl.textContent='';msgEl.style.color='';
+  const nombre=document.getElementById('soc-pend-nombre').value.trim();
+  if(!nombre){msgEl.style.color='#ef4444';msgEl.textContent='⚠️ Introduce un nombre';return;}
+  try{
+    const key=await dbPush('socios',{name:nombre,addedAt:Date.now(),pendiente:true});
+    document.getElementById('soc-pend-nombre').value='';
+    msgEl.style.color='#16a34a';msgEl.textContent='✅ Perfil creado — ya puedes asignarle gastos. Cuando te pase su email, vinculalo desde la lista de abajo.';
+    toast('✅ Perfil creado');
+  }catch(e){console.error(e);msgEl.style.color='#ef4444';msgEl.textContent='❌ Error al guardar';}
+}
+
+async function vincularEmailSocio(key,nombre){
+  if(!isTesorero()){toast('❌ Solo el superusuario o un tesorero puede hacer esto');return;}
+  const email=prompt(`Email de Google de ${nombre}:`);
+  if(!email)return;
+  const emailLimpio=email.trim().toLowerCase();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLimpio)){toast('⚠️ Ese email no parece válido');return;}
+  try{
+    await dbUpd(`socios/${key}`,{email:emailLimpio,pendiente:null});
+    toast(`✅ Email vinculado — ${nombre} ya puede entrar con Google`);
+  }catch(e){console.error(e);toast('❌ Error al vincular el email');}
 }
 
 async function delSocio(key,name){
