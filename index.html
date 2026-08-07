@@ -3522,7 +3522,7 @@ function goToMonthIng(num){
 // ══ BALANCE (acumulado anual / total) ══
 const FOUNDING_YEAR=2025; // primer año con datos posibles; ajusta si hace falta
 let chartBalanceYears=null;
-let lastBalanceAnual=null,lastBalRango=null,lastIngRango=null,lastAjustesPorSocio=null,lastHistorico=null,lastAuditoria=null,allAuditoria=null;
+let lastBalanceAnual=null,lastBalRango=null,lastIngRango=null,lastAjustesPorSocio=null,lastHistorico=null,lastAuditoria=null,allAuditoria=null,lastSocioDetalleMovs=null;
 async function loadBalance(){
   const el=document.getElementById('balance-content');
   el.innerHTML=`<div class="anual-loading"><div class="spinner" style="margin:0 auto 8px"></div>Calculando balance...</div>`;
@@ -3535,22 +3535,23 @@ async function loadBalance(){
     const monthKeys=Array.from({length:12},(_,i)=>`${y}-${pad(i+1)}`);
     const months=await Promise.all(monthKeys.map(k=>Promise.all([dbGet(`gastos_hogar/${k}`),dbGet(`ingresos/${k}`)])));
     let gastos=0,ingresos=0;
-    months.forEach(([g,i])=>{
-      Object.values(g||{}).forEach(x=>{
+    months.forEach(([g,i],idx)=>{
+      const mesKey=monthKeys[idx];
+      Object.entries(g||{}).forEach(([id,x])=>{
         const imp=parseFloat(x.importe||0);gastos+=imp;
         gastosPorCat[x.categoria]=(gastosPorCat[x.categoria]||0)+imp;
         if(x.categoria==='ajustes'&&x.socio_relacionado){
           porSocioDevuelto[x.socio_relacionado]=(porSocioDevuelto[x.socio_relacionado]||0)+imp;
         }
-        allMovimientos.push({tipo:'gasto',...x});
+        allMovimientos.push({...x,tipo:'gasto',id,mes:mesKey});
       });
-      Object.values(i||{}).forEach(x=>{
+      Object.entries(i||{}).forEach(([id,x])=>{
         const imp=parseFloat(x.importe||0);ingresos+=imp;
         ingresosPorCat[x.categoria]=(ingresosPorCat[x.categoria]||0)+imp;
         if(x.categoria==='otros'&&x.socio_relacionado){
           porSocioAportado[x.socio_relacionado]=(porSocioAportado[x.socio_relacionado]||0)+imp;
         }
-        allMovimientos.push({tipo:'ingreso',...x});
+        allMovimientos.push({...x,tipo:'ingreso',id,mes:mesKey});
       });
     });
     return{year:y,gastos,ingresos,balance:ingresos-gastos};
@@ -3705,19 +3706,49 @@ function openSocioDetalle(socioId){
        <div style="font-size:1.02rem;font-weight:900;color:#0891b2">${fmtEur(devuelto)}</div>
      </div>`;
 
-  document.getElementById('sociod-lista').innerHTML=movs.length?movs.map(m=>{
+  lastSocioDetalleMovs=movs;
+  document.getElementById('sociod-lista').innerHTML=movs.length?movs.map((m,idx)=>{
     const esAporte=m.tipo==='ingreso';
-    return`<div style="display:flex;align-items:center;gap:10px;padding:.6rem 0;border-bottom:1px solid #f1f5f9">
+    return`<div style="display:flex;align-items:center;gap:10px;padding:.6rem 0;border-bottom:1px solid #f1f5f9;cursor:pointer" onclick="goToMovimiento(${idx})">
       <div style="width:34px;height:34px;border-radius:50%;background:${esAporte?'#dcfce7':'#cffafe'};display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0">${esAporte?'➕':'↩️'}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.descripcion||(esAporte?'Aportación':'Devolución'))}</div>
         <div style="font-size:.7rem;color:#94a3b8">${fmtDate(m.fecha)} · ${esAporte?'Aportación':'Devolución'}</div>
       </div>
       <div style="font-size:.9rem;font-weight:900;color:${esAporte?'#16a34a':'#0891b2'};white-space:nowrap">${esAporte?'+':'-'}${fmtEur(m.importe)}</div>
+      <div style="color:#cbd5e1;font-size:.85rem">›</div>
     </div>`;
   }).join(''):`<div class="empty" style="padding:1rem"><div class="ei">📭</div><div class="et">Sin movimientos registrados</div></div>`;
 
   openModal('modal-socio-detalle');
+}
+
+// Navega desde el detalle de un socio hasta el movimiento original para poder verlo/editarlo
+async function goToMovimiento(idx){
+  const m=lastSocioDetalleMovs?.[idx];
+  if(!m||!m.mes||!m.id)return;
+  closeModal('modal-socio-detalle');
+  toast('⏳ Abriendo movimiento...');
+  const [y,mo]=m.mes.split('-').map(Number);
+  currentYear=y;currentMonthNum=mo;
+  buildYearSelect();buildMonthPills();
+  try{
+    if(m.tipo==='gasto'){
+      hogarData=await dbGet(`gastos_hogar/${m.mes}`)||{};
+      switchMain('hogar',document.getElementById('btn-tab-hogar'));
+      renderHGastos();updateHero();
+      attachHLsn();
+      switchHogarSub('gastos',document.querySelector('#hogar-subnav .sub-pill'));
+      openGHModal(m.id);
+    }else{
+      viajesData=await dbGet(`ingresos/${m.mes}`)||{};
+      switchMain('viajes',document.getElementById('btn-tab-viajes'));
+      renderIngList();updateHeroIng();
+      attachVLsn();
+      switchIngSub('movimientos',document.querySelector('#ing-subnav button'));
+      openGVModal(m.id);
+    }
+  }catch(e){console.error(e);toast('❌ No se pudo abrir el movimiento');}
 }
 
 async function renderHistorico(){
