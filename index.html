@@ -581,6 +581,13 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
       <div class="sub-nav" id="ing-subnav">
         <button class="sub-pill active" onclick="switchIngSub('movimientos',this)">💰 Movimientos</button>
         <button class="sub-pill"        onclick="switchIngSub('resumen',this)">📊 Resumen</button>
+        <select class="sub-pill" id="ing-cat-filter" onchange="quickFilterIngCategoria(this.value)" style="appearance:none;-webkit-appearance:none;padding-right:26px;background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%226%22 viewBox=%220 0 10 6%22><path d=%22M1 1l4 4 4-4%22 stroke=%22%2364748b%22 stroke-width=%221.6%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/></svg>');background-repeat:no-repeat;background-position:right 9px center">
+          <option value="">🍩 Categorías</option>
+          <option value="cuota_socio">👤 Cuota Socio</option>
+          <option value="cuota_amigo">🧒 Cuota Amigo</option>
+          <option value="subvenciones">🫙 Bote</option>
+          <option value="otros">💶 Otros</option>
+        </select>
         <button class="sub-pill"        onclick="switchIngSub('anual',this)">📅 Anual</button>
       </div>
 
@@ -595,6 +602,7 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
           </select>
         </div>
         <div class="person-filters" id="ing-person-filters"></div>
+        <div id="ing-cat-filter-banner"></div>
         <div id="ing-list"></div>
       </div>
 
@@ -984,6 +992,27 @@ input:checked+.toggle-track:before{transform:translateX(18px)}
         <input type="date" id="catd-date-end" onchange="setCatFiltro('rango',null)">
       </div>
       <div id="catd-lista"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETALLE AJUSTE POR SOCIO -->
+<div class="modal-ov" id="modal-socio-detalle">
+  <div class="modal-box" style="padding:0;overflow:hidden">
+    <div id="sociod-header" style="padding:1.25rem 1.25rem .9rem;color:white;position:relative;background:linear-gradient(135deg,#1e293b,#0f172a)">
+      <button onclick="closeModal('modal-socio-detalle')" style="position:absolute;top:12px;right:12px;background:rgba(255,255,255,.2);border:none;color:white;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center">✕</button>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="user-avatar" id="sociod-av" style="width:44px;height:44px;font-size:15px;flex-shrink:0"></div>
+        <div style="min-width:0">
+          <div id="sociod-title" style="font-size:1.1rem;font-weight:900"></div>
+          <div id="sociod-sub" style="font-size:.75rem;opacity:.85;margin-top:2px"></div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:.9rem 1.1rem 1.5rem;overflow-y:auto;max-height:75vh">
+      <div id="sociod-resumen" style="display:flex;gap:8px;margin-bottom:.9rem"></div>
+      <div style="font-size:.72rem;font-weight:800;color:#94a3b8;text-transform:uppercase;margin-bottom:.4rem">Movimientos</div>
+      <div id="sociod-lista"></div>
     </div>
   </div>
 </div>
@@ -3192,11 +3221,28 @@ function exportCategoriaPDF(){
 function renderIngList(){
   const entries=getFilteredSortedEntriesIng();
   const el=document.getElementById('ing-list');
+  const banner=document.getElementById('ing-cat-filter-banner');
+  if(banner){
+    if(activeCatFilterIng){
+      const cat=getCat(CAT_VIAJE,activeCatFilterIng);
+      const total=entries.reduce((s,[,g])=>s+parseFloat(g.importe||0),0);
+      banner.innerHTML=`<div style="display:flex;align-items:center;gap:8px;background:${cat.color}14;border:1px solid ${cat.color}33;border-radius:12px;padding:.55rem .8rem;margin-bottom:.6rem">
+        <span style="font-size:1.05rem">${cat.icon}</span>
+        <div style="flex:1">
+          <div style="font-size:.8rem;font-weight:800;color:${cat.color}">${cat.label}</div>
+          <div style="font-size:.68rem;color:#94a3b8">${entries.length} movimiento${entries.length!==1?'s':''} · Total ${fmtEur(total)}</div>
+        </div>
+        <button class="iBtn" style="background:white" onclick="quickFilterIngCategoria('');document.getElementById('ing-cat-filter').value=''">✕</button>
+      </div>`;
+    } else banner.innerHTML='';
+  }
   if(!entries.length){
     const search=document.getElementById('ing-search')?.value||'';
     el.innerHTML=search
       ?`<div class="empty"><div class="ei">🔍</div><div class="et">Sin resultados para "${esc(search)}"</div><div class="es">Prueba con otra descripción o categoría</div></div>`
-      :`<div class="empty"><div class="ei">💰</div><div class="et">Sin ingresos este mes</div><div class="es">Pulsa + para añadir el primero</div></div>`;
+      :activeCatFilterIng
+        ?`<div class="empty"><div class="ei">💰</div><div class="et">Sin ingresos en esta categoría este mes</div><div class="es">Prueba a cambiar de categoría o mes</div></div>`
+        :`<div class="empty"><div class="ei">💰</div><div class="et">Sin ingresos este mes</div><div class="es">Pulsa + para añadir el primero</div></div>`;
     return;
   }
   el.innerHTML='<div class="gasto-list">'+entries.map(([id,g])=>{
@@ -3227,6 +3273,13 @@ function renderIngList(){
 }
 
 let activePersonFilterIng=null;
+let activeCatFilterIng='';
+function quickFilterIngCategoria(catId){
+  activeCatFilterIng=catId||'';
+  // Nos aseguramos de estar en la vista de Movimientos para ver el resultado
+  if(ingSub!=='movimientos')switchIngSub('movimientos',document.querySelector('#ing-subnav button'));
+  renderIngList();
+}
 function buildPersonFiltersIng(persons){
   const el=document.getElementById('ing-person-filters');
   if(!el)return;
@@ -3246,6 +3299,7 @@ function getFilteredSortedEntriesIng(){
   const sort=document.getElementById('ing-sort')?.value||'fecha-desc';
   let entries=Object.entries(viajesData);
   if(activePersonFilterIng)entries=entries.filter(([,g])=>g.quien===activePersonFilterIng);
+  if(activeCatFilterIng)entries=entries.filter(([,g])=>(g.categoria||'otros')===activeCatFilterIng);
   if(search){
     entries=entries.filter(([,g])=>{
       const cat=getCat(CAT_VIAJE,g.categoria);
@@ -3580,7 +3634,7 @@ async function renderAjustesPorSocio(){
   +filas.map(f=>{
     const pos=f.pendiente>0.004; // pendiente real (evita ruido de decimales)
     const saldado=Math.abs(f.pendiente)<=0.004;
-    return`<div class="card" style="margin-bottom:.6rem;padding:.85rem 1rem">
+    return`<div class="card" style="margin-bottom:.6rem;padding:.85rem 1rem;cursor:pointer" onclick="openSocioDetalle('${f.id}')">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
         <div class="user-avatar ${f.avClass}" style="width:36px;height:36px;font-size:12px">${f.letter}</div>
         <div style="flex:1">
@@ -3591,6 +3645,7 @@ async function renderAjustesPorSocio(){
           <div style="font-size:1.05rem;font-weight:900;color:${saldado?'#94a3b8':pos?'#ef4444':'#16a34a'}">${saldado?'Saldado ✅':fmtEur(Math.abs(f.pendiente))}</div>
           ${!saldado?`<div style="font-size:.65rem;color:#94a3b8;font-weight:700">${pos?'se le debe':'debe a la Peña'}</div>`:''}
         </div>
+        <div style="color:#cbd5e1;font-size:.9rem">›</div>
       </div>
     </div>`;
   }).join('');
@@ -3617,6 +3672,52 @@ function exportAjustesPorSocioPDF(){
   +'<table><thead><tr><th>Socio</th><th>Aportado</th><th>Devuelto</th><th>Pendiente</th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'
   +'</body></html>');
   w.document.close();
+}
+
+function openSocioDetalle(socioId){
+  const f=FAMILY.find(x=>x.id===socioId);
+  if(!f||!lastBalanceAnual)return;
+  const {allMovimientos,porSocioAportado,porSocioDevuelto}=lastBalanceAnual;
+  const movs=allMovimientos.filter(m=>m.socio_relacionado===socioId&&(
+    (m.tipo==='ingreso'&&m.categoria==='otros')||(m.tipo==='gasto'&&m.categoria==='ajustes')
+  )).sort((a,b)=>(b.fecha||'')>(a.fecha||'')?1:-1);
+
+  const aportado=porSocioAportado[socioId]||0;
+  const devuelto=porSocioDevuelto[socioId]||0;
+  const pendiente=aportado-devuelto;
+  const pos=pendiente>0.004,saldado=Math.abs(pendiente)<=0.004;
+
+  const av=document.getElementById('sociod-av');
+  av.className='user-avatar '+(f.avClass||'');
+  av.textContent=f.letter;
+  document.getElementById('sociod-title').textContent=f.name;
+  document.getElementById('sociod-sub').textContent=saldado
+    ?'✅ Saldado'
+    :(pos?'🔴 Se le debe '+fmtEur(Math.abs(pendiente)):'🟢 Debe '+fmtEur(Math.abs(pendiente))+' a la Peña');
+
+  document.getElementById('sociod-resumen').innerHTML=
+    `<div class="card" style="flex:1;padding:.6rem;text-align:center">
+       <div style="font-size:.62rem;color:#94a3b8;font-weight:800;text-transform:uppercase">Aportado</div>
+       <div style="font-size:1.02rem;font-weight:900;color:#16a34a">${fmtEur(aportado)}</div>
+     </div>
+     <div class="card" style="flex:1;padding:.6rem;text-align:center">
+       <div style="font-size:.62rem;color:#94a3b8;font-weight:800;text-transform:uppercase">Devuelto</div>
+       <div style="font-size:1.02rem;font-weight:900;color:#0891b2">${fmtEur(devuelto)}</div>
+     </div>`;
+
+  document.getElementById('sociod-lista').innerHTML=movs.length?movs.map(m=>{
+    const esAporte=m.tipo==='ingreso';
+    return`<div style="display:flex;align-items:center;gap:10px;padding:.6rem 0;border-bottom:1px solid #f1f5f9">
+      <div style="width:34px;height:34px;border-radius:50%;background:${esAporte?'#dcfce7':'#cffafe'};display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0">${esAporte?'➕':'↩️'}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.descripcion||(esAporte?'Aportación':'Devolución'))}</div>
+        <div style="font-size:.7rem;color:#94a3b8">${fmtDate(m.fecha)} · ${esAporte?'Aportación':'Devolución'}</div>
+      </div>
+      <div style="font-size:.9rem;font-weight:900;color:${esAporte?'#16a34a':'#0891b2'};white-space:nowrap">${esAporte?'+':'-'}${fmtEur(m.importe)}</div>
+    </div>`;
+  }).join(''):`<div class="empty" style="padding:1rem"><div class="ei">📭</div><div class="et">Sin movimientos registrados</div></div>`;
+
+  openModal('modal-socio-detalle');
 }
 
 async function renderHistorico(){
